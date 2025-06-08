@@ -7,7 +7,6 @@ import FormData from 'form-data';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
-import fsSync from 'fs';
 
 dotenv.config();
 
@@ -16,21 +15,8 @@ const port = process.env.PORT || 3001;
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs/";
 
 // --- Database Path Setup ---
-// Use a standard, persistent data directory provided by the host.
-const dataDir = '/var/data';
+const dataDir = process.env.RENDER_DISK_MOUNT_PATH || path.join(__dirname, '..', 'data');
 const dbPath = path.join(dataDir, 'db.json');
-
-// Function to ensure directory and file exist
-const initializeDatabase = async () => {
-    try {
-        await fs.mkdir(dataDir, { recursive: true });
-        // Check if the file exists
-        await fs.access(dbPath);
-    } catch (error) {
-        // If the file doesn't exist, create it with an empty array
-        await fs.writeFile(dbPath, JSON.stringify([]), 'utf-8');
-    }
-};
 
 // Define a type for our track object for better code quality
 interface Track {
@@ -39,80 +25,78 @@ interface Track {
     trackTitle: string;
     genre: string;
     coverImageUrl: string;
-    videoUrl: string;
+    videoUrl:string;
     status: 'pending' | 'approved' | 'rejected' | 'published';
     submittedAt: string;
     reportCount: number;
     transactionHash?: string;
 }
 
-// Middlewares
-app.use(cors()); // Allow cross-origin requests
-app.use(express.json()); // for parsing application/json
-app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
+interface Database {
+    tracks: Track[];
+}
 
-// A simple test route
+// Function to ensure directory and file exist
+const initializeDatabase = async () => {
+    try {
+        await fs.mkdir(dataDir, { recursive: true });
+        await fs.access(dbPath);
+    } catch (error) {
+        console.log('Database file not found. Creating a new one.');
+        await fs.writeFile(dbPath, JSON.stringify({ tracks: [] }), 'utf-8');
+    }
+};
+
+// --- Middlewares ---
+app.use(cors()); 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true })); 
+
+// --- Test Route ---
 app.get('/', (req: Request, res: Response) => {
   res.send('Hello from the Web3 Music Platform backend!');
 });
 
-// Multer setup for handling file uploads in memory
+// --- File Upload Setup ---
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Helper function to upload a file to Pinata
 const uploadToPinata = async (file: Express.Multer.File): Promise<string> => {
     const PINATA_JWT = process.env.PINATA_JWT;
     if (!PINATA_JWT) {
         throw new Error('Pinata JWT is not configured on the server.');
     }
-
     const url = `https://api.pinata.cloud/pinning/pinFileToIPFS`;
     const formData = new FormData();
     formData.append('file', file.buffer, file.originalname);
-
     const response = await axios.post(url, formData, {
         headers: {
             ...formData.getHeaders(),
             'Authorization': `Bearer ${PINATA_JWT}`
         }
     });
-
     const ipfsHash = response.data.IpfsHash;
     if (!ipfsHash) {
         throw new Error('IPFS hash not found in Pinata response.');
     }
-    
     return `${IPFS_GATEWAY_URL}${ipfsHash}`;
 };
 
-// The real upload route
-app.post('/upload', (upload.fields([
+// --- API Endpoints ---
+
+// Upload a new track
+app.post('/upload', upload.fields([
     { name: 'coverImageFile', maxCount: 1 },
     { name: 'videoFile', maxCount: 1 }
-]) as any), async (req: Request, res: Response) => {
-    console.log('Received upload request...');
-
+]) as any, async (req: Request, res: Response) => {
     try {
         const { artistName, trackTitle, genre } = req.body;
-        console.log('Artist:', artistName, 'Title:', trackTitle, 'Genre:', genre);
-
         if (!req.files || !('coverImageFile' in req.files) || !('videoFile' in req.files)) {
-            res.status(400).json({ error: 'Cover image and video file are required.' });
-            return;
+            return res.status(400).json({ error: 'Cover image and video file are required.' });
         }
-
         const files = req.files as any;
-        const coverImageFile = files['coverImageFile'][0];
-        const videoFile = files['videoFile'][0];
-
-        console.log('Uploading cover image to Pinata...');
-        const coverImageUrl = await uploadToPinata(coverImageFile);
-
-        console.log('Uploading video to Pinata...');
-        const videoUrl = await uploadToPinata(videoFile);
-
-        console.log('Uploads successful! Saving to database...');
+        const coverImageUrl = await uploadToPinata(files['coverImageFile'][0]);
+        const videoUrl = await uploadToPinata(files['videoFile'][0]);
         
         const newTrack: Track = {
             id: uuidv4(),
@@ -126,23 +110,15 @@ app.post('/upload', (upload.fields([
             reportCount: 0
         };
         
-        try {
-            const dbData = await fs.readFile(dbPath, 'utf-8');
-            const db = JSON.parse(dbData);
-            db.tracks.push(newTrack);
-            await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-            console.log('Successfully saved track to database.');
-        } catch (dbError) {
-             console.error('Error writing to database:', dbError);
-             res.status(500).json({ error: 'Failed to save track to database.' });
-             return;
-        }
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+        db.tracks.push(newTrack);
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
         res.status(200).json({
             message: 'Files uploaded successfully and submitted for review!',
             track: newTrack
         });
-
     } catch (error) {
         console.error('Error during upload process:', error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -150,52 +126,47 @@ app.post('/upload', (upload.fields([
     }
 });
 
-// Endpoint to get all submissions
+// Get all submissions
 app.get('/submissions', async (req: Request, res: Response) => {
     try {
-        await initializeDatabase(); // Ensure db exists before reading
         const dbData = await fs.readFile(dbPath, 'utf-8');
-        const submissions = JSON.parse(dbData);
-        res.json(submissions);
+        const db: Database = JSON.parse(dbData);
+        res.json(db.tracks || []);
     } catch (error) {
         console.error('Error reading submissions from database:', error);
         res.status(500).json({ error: 'Failed to retrieve submissions.' });
     }
 });
 
-// Endpoint to update submission status (approve/reject)
+// Update submission status (approve/reject)
 app.patch('/submissions/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { status } = req.body; // 'approved' or 'rejected'
+    const { status } = req.body;
 
     if (!status || !['approved', 'rejected'].includes(status)) {
         return res.status(400).json({ error: 'Invalid status provided.' });
     }
 
     try {
-        await initializeDatabase(); // Ensure db exists before reading
         const dbData = await fs.readFile(dbPath, 'utf-8');
-        let submissions: Track[] = JSON.parse(dbData);
-        const submissionIndex = submissions.findIndex(s => s.id === id);
+        const db: Database = JSON.parse(dbData);
+        const submissionIndex = db.tracks.findIndex(s => s.id === id);
 
         if (submissionIndex === -1) {
-            res.status(404).json({ error: 'Track not found.' });
-            return;
+            return res.status(404).json({ error: 'Track not found.' });
         }
 
-        submissions[submissionIndex].status = status;
-        await fs.writeFile(dbPath, JSON.stringify(submissions, null, 2));
+        db.tracks[submissionIndex].status = status;
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
         
-        console.log(`Updated status for track ${id} to ${status}`);
-        res.status(200).json(submissions[submissionIndex]);
-
+        res.status(200).json(db.tracks[submissionIndex]);
     } catch (error) {
         console.error('Error updating submission status:', error);
         res.status(500).json({ error: 'Failed to update submission status.' });
     }
 });
 
-// New endpoint to confirm publication and store transaction hash
+// Confirm publication and store transaction hash
 app.post('/submissions/:id/confirm-publication', async (req: Request, res: Response) => {
     const { id } = req.params;
     const { transactionHash } = req.body;
@@ -205,106 +176,106 @@ app.post('/submissions/:id/confirm-publication', async (req: Request, res: Respo
     }
 
     try {
-        await initializeDatabase(); // Ensure db exists before reading
         const dbData = await fs.readFile(dbPath, 'utf-8');
-        let submissions: Track[] = JSON.parse(dbData);
-        const submissionIndex = submissions.findIndex(s => s.id === id);
+        const db: Database = JSON.parse(dbData);
+        const submissionIndex = db.tracks.findIndex(s => s.id === id);
 
         if (submissionIndex === -1) {
             return res.status(404).json({ error: 'Track not found.' });
         }
 
-        submissions[submissionIndex].status = 'published';
-        submissions[submissionIndex].transactionHash = transactionHash;
+        db.tracks[submissionIndex].status = 'published';
+        db.tracks[submissionIndex].transactionHash = transactionHash;
         
-        await fs.writeFile(dbPath, JSON.stringify(submissions, null, 2));
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
         
-        console.log(`Confirmed publication for track ${id} with hash ${transactionHash}`);
-        res.status(200).json(submissions[submissionIndex]);
-
+        res.status(200).json(db.tracks[submissionIndex]);
     } catch (error) {
         console.error('Error confirming publication:', error);
         res.status(500).json({ error: 'Failed to confirm publication.' });
     }
 });
 
-// Endpoint to delete a submission
+// Delete a submission
 app.delete('/submissions/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
 
     try {
-        await initializeDatabase(); // Ensure db exists before reading
         const dbData = await fs.readFile(dbPath, 'utf-8');
-        let submissions: Track[] = JSON.parse(dbData);
-        const updatedSubmissions = submissions.filter(s => s.id !== id);
+        const db: Database = JSON.parse(dbData);
+        const initialLength = db.tracks.length;
+        db.tracks = db.tracks.filter(s => s.id !== id);
         
-        if (updatedSubmissions.length === submissions.length) {
+        if (db.tracks.length === initialLength) {
             return res.status(404).json({ error: 'Track not found.' });
         }
 
-        await fs.writeFile(dbPath, JSON.stringify(updatedSubmissions, null, 2));
-        console.log(`Deleted submission ${id}`);
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
         res.status(200).json({ message: 'Submission deleted successfully.' });
-
     } catch (error) {
         console.error('Error deleting submission:', error);
         res.status(500).json({ error: 'Failed to delete submission.' });
     }
 });
 
-// Endpoint for reporting a track
+
+// Report a submission
 app.post('/submissions/:id/report', async (req: Request, res: Response) => {
     const { id } = req.params;
-
+    
     try {
-        await initializeDatabase(); // Ensure db exists before reading
         const dbData = await fs.readFile(dbPath, 'utf-8');
-        let submissions: Track[] = JSON.parse(dbData);
-        const submissionIndex = submissions.findIndex(s => s.id === id);
+        const db: Database = JSON.parse(dbData);
+        const submissionIndex = db.tracks.findIndex(s => s.id === id);
 
         if (submissionIndex === -1) {
-            res.status(404).json({ error: 'Track not found.' });
-            return;
+            return res.status(404).json({ error: 'Track not found.' });
         }
-        
-        submissions[submissionIndex].reportCount = (submissions[submissionIndex].reportCount || 0) + 1;
-        await fs.writeFile(dbPath, JSON.stringify(submissions, null, 2));
-        
-        console.log(`Report received for track ${id}. New count: ${submissions[submissionIndex].reportCount}`);
-        res.status(200).json(submissions[submissionIndex]);
 
+        db.tracks[submissionIndex].reportCount += 1;
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+        
+        res.status(200).json(db.tracks[submissionIndex]);
     } catch (error) {
         console.error('Error reporting submission:', error);
         res.status(500).json({ error: 'Failed to report submission.' });
     }
 });
 
-// Endpoint to get stats
+
+// Get platform statistics
 app.get('/stats', async (req: Request, res: Response) => {
     try {
-        await initializeDatabase(); // Ensure db exists before reading
         const dbData = await fs.readFile(dbPath, 'utf-8');
-        const submissions: Track[] = JSON.parse(dbData);
+        const db: Database = JSON.parse(dbData);
+        const tracks = db.tracks || [];
 
-        const totalSubmissions = submissions.length;
-        const pending = submissions.filter(s => s.status === 'pending').length;
-        const approved = submissions.filter(s => s.status === 'approved').length;
-        const rejected = submissions.filter(s => s.status === 'rejected').length;
+        const totalSubmissions = tracks.length;
+        const pendingCount = tracks.filter((t: Track) => t.status === 'pending').length;
+        const approvedCount = tracks.filter((t: Track) => t.status === 'approved').length;
+        const rejectedCount = tracks.filter((t: Track) => t.status === 'rejected').length;
+        const publishedCount = tracks.filter((t: Track) => t.status === 'published').length;
 
-        res.status(200).json({
+        res.json({
             totalSubmissions,
-            pending,
-            approved,
-            rejected
+            pending: pendingCount,
+            approved: approvedCount,
+            rejected: rejectedCount,
+            published: publishedCount
         });
-
     } catch (error) {
-        console.error('Error fetching stats:', error);
-        res.status(500).json({ error: 'Failed to fetch stats.' });
+        console.error('Error getting stats:', error);
+        res.status(500).json({ error: 'Failed to get stats.' });
     }
 });
 
-app.listen(port, () => {
-    initializeDatabase(); // Ensure db exists on startup
-    console.log(`Backend server is running on http://localhost:${port}`);
-}); 
+
+// --- Server Initialization ---
+const startServer = async () => {
+    await initializeDatabase();
+    app.listen(port, () => {
+        console.log(`Backend server is running on http://localhost:${port}`);
+    });
+};
+
+startServer().catch(console.error); 
