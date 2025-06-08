@@ -1,0 +1,13 @@
+# render.yaml
+services:
+  - type: web
+    name: web3-music-backend
+    env: node
+    rootDir: backend
+    plan: free
+    healthCheckPath: /
+    buildCommand: "yarn install && yarn build"
+    startCommand: "yarn start"
+    disks:
+      - name: data
+        mountPath: /usr/src/app/backend/data 
