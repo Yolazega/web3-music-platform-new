@@ -128,10 +128,20 @@ app.post('/upload', upload.fields([
 
 // Get all submissions
 app.get('/submissions', async (req: Request, res: Response) => {
+    const { status } = req.query;
+
     try {
         const dbData = await fs.readFile(dbPath, 'utf-8');
         const db: Database = JSON.parse(dbData);
-        res.json(db.tracks || []);
+        let tracks = db.tracks || [];
+
+        // Filter by status if the query parameter is provided
+        if (status && typeof status === 'string' && ['pending', 'approved', 'rejected', 'published'].includes(status)) {
+            tracks = tracks.filter(track => track.status === status);
+        }
+        
+        // Return a consistent object shape
+        res.json({ tracks });
     } catch (error) {
         console.error('Error reading submissions from database:', error);
         res.status(500).json({ error: 'Failed to retrieve submissions.' });
