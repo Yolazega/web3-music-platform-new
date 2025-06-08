@@ -1,4 +1,11 @@
 # render.yaml
+
+# 1. Define the persistent disk
+disks:
+  - name: data
+    mountPath: /var/data
+
+# 2. Define the web service and link it to the disk
 services:
   - type: web
     name: web3-music-backend
@@ -8,6 +15,7 @@ services:
     healthCheckPath: /
     buildCommand: "yarn install && yarn build"
     startCommand: "yarn start"
-    disks:
-      - name: data
-        mountPath: /var/data 
+    # Link the disk to this service
+    disk:
+      name: data
+      mountPath: /var/data 
