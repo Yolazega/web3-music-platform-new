@@ -16,9 +16,8 @@ const port = process.env.PORT || 3001;
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs/";
 
 // --- Database Path Setup ---
-// We create a `data` directory and store our db.json there.
-// This is compatible with Render's persistent disks feature.
-const dataDir = path.join(process.cwd(), 'data');
+// Use a standard, persistent data directory provided by the host.
+const dataDir = '/var/data';
 const dbPath = path.join(dataDir, 'db.json');
 
 // Function to ensure directory and file exist

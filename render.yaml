@@ -10,4 +10,4 @@ services:
     startCommand: "yarn start"
     disks:
       - name: data
-        mountPath: /usr/src/app/backend/data 
+        mountPath: /var/data 
