@@ -1,5 +1,12 @@
 import React, { useState, type ChangeEvent, useEffect } from 'react';
-import axios from 'axios'; // We will use axios to talk to our backend
+import api from '../services/api';
+
+const GENRES = [
+    'Pop', 'Rock', 'Hip-Hop', 'R&B', 'Country', 'Jazz', 'Electronic',
+    'Classical', 'Reggae', 'Blues', 'Folk', 'Metal', 'Punk', 'Alternative',
+    'Indie', 'Funk', 'Soul', 'Gospel', 'Latin', 'K-Pop',
+    'Afrobeat', 'Dancehall', 'Ambient', 'Techno', 'House'
+];
 
 const UploadPage: React.FC = () => {
   // Removed all wagmi hooks (useAccount, useWriteContract, etc.)
@@ -42,7 +49,7 @@ const UploadPage: React.FC = () => {
     formData.append('videoFile', videoFile);
 
     try {
-        const response = await axios.post('http://localhost:3001/upload', formData, {
+        const response = await api.post('/upload', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
             }

@@ -3,6 +3,7 @@ import { useAccount, useReadContract, useWriteContract, useWaitForTransactionRec
 import { AXEP_VOTING_CONTRACT_ADDRESS, AMOY_CHAIN_ID } from 'config';
 import { axepVotingAbi } from 'contracts/contract';
 import { type Abi } from 'viem';
+import api from '../services/api';
 import axios from 'axios';
 
 // Define a type for the track data returned by the contract
@@ -22,6 +23,7 @@ const VotingPage: React.FC = () => {
     const { data: hash, writeContract, isPending: isVoting, error: writeError } = useWriteContract();
 
     const [tracks, setTracks] = useState<Track[]>([]);
+    const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [reportedTracks, setReportedTracks] = useState<Set<bigint>>(new Set());
 
@@ -46,11 +48,19 @@ const VotingPage: React.FC = () => {
     });
 
     useEffect(() => {
-        if (trackDetailsData) {
-            const formattedTracks = trackDetailsData.map(res => res.result as Track).filter(Boolean);
-            setTracks(formattedTracks);
-        }
-    }, [trackDetailsData]);
+        const fetchTracks = async () => {
+            try {
+                setLoading(true);
+                const response = await api.get('/submissions?status=approved');
+                setTracks(response.data);
+            } catch (err) {
+                console.error('Failed to fetch tracks:', err);
+                setError('Failed to fetch tracks. Please try again later.');
+            }
+        };
+
+        fetchTracks();
+    }, []);
 
     const { isLoading: isConfirming, isSuccess: isConfirmed, error: receiptError } = useWaitForTransactionReceipt({ hash });
 
@@ -71,12 +81,19 @@ const VotingPage: React.FC = () => {
     };
     
     const handleReport = async (trackId: bigint) => {
-        try {
-            await axios.post(`http://localhost:3001/submissions/${trackId.toString()}/report`);
-            setReportedTracks(prev => new Set(prev).add(trackId));
-        } catch (err) {
-            console.error('Failed to report track:', err);
-            // Optionally show an error to the user
+        if (!address) {
+            alert('Please connect your wallet to report a track.');
+            return;
+        }
+        if (window.confirm('Are you sure you want to report this track?')) {
+            try {
+                await api.post(`/submissions/${trackId.toString()}/report`);
+                alert('Track reported successfully. Thank you for your feedback.');
+                setReportedTracks(prev => new Set(prev).add(trackId));
+            } catch (err) {
+                console.error('Failed to report track:', err);
+                setError('Failed to report track. Please try again later.');
+            }
         }
     };
 

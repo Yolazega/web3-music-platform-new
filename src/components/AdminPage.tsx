@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useReadContracts } from 'wagmi';
+import api from '../services/api';
 import { AXEP_VOTING_CONTRACT_ADDRESS } from 'config';
 import { axepVotingAbi } from 'contracts/contract';
 import type { Address } from 'viem';
@@ -33,7 +33,7 @@ interface OnChainTrack {
 
 const AdminPage: React.FC = () => {
     const [submissions, setSubmissions] = useState<Track[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isLoading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [stats, setStats] = useState({ totalSubmissions: 0, pending: 0, approved: 0, rejected: 0 });
     const [totalVotes, setTotalVotes] = useState<number>(0);
@@ -42,15 +42,22 @@ const AdminPage: React.FC = () => {
     const [manualTransactionHash, setManualTransactionHash] = useState('');
 
     // --- Fetching on-chain data from the smart contract ---
-    const { data: onChainTrackIdsResult } = useReadContracts({
-        contracts: [{
-            address: AXEP_VOTING_CONTRACT_ADDRESS as Address,
-            abi: axepVotingAbi,
-            functionName: 'getAllTrackIds',
-        }]
+    const { data: onChainData, isError: isOnChainError, isLoading: isOnChainLoading } = useReadContracts({
+        contracts: [
+            {
+                address: AXEP_VOTING_CONTRACT_ADDRESS,
+                abi: axepVotingAbi,
+                functionName: 'getApprovedTrackCount',
+            },
+            {
+                address: AXEP_VOTING_CONTRACT_ADDRESS,
+                abi: axepVotingAbi,
+                functionName: 'getTotalVotes',
+            },
+        ],
     });
 
-    const trackIds = onChainTrackIdsResult?.[0]?.result as bigint[] | undefined;
+    const trackIds = onChainData?.[0]?.result as bigint[] | undefined;
 
     const { data: onChainTrackDetails } = useReadContracts({
         contracts: trackIds?.map(id => ({
@@ -75,16 +82,16 @@ const AdminPage: React.FC = () => {
 
     useEffect(() => {
         const loadBackendData = async () => {
-            setIsLoading(true);
+            setLoading(true);
             try {
                 // Fetch both submissions and stats from the backend
                 const [submissionsRes, statsRes] = await Promise.all([
-                    axios.get('http://localhost:3001/submissions'),
-                    axios.get('http://localhost:3001/stats')
+                    api.get('/submissions'),
+                    api.get('/stats')
                 ]);
 
                 // Sort submissions by creation date, newest first
-                const sortedSubmissions = submissionsRes.data.sort((a: Track, b: Track) => 
+                const sortedSubmissions = submissionsRes.data.tracks.sort((a: Track, b: Track) => 
                     new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
                 );
                 setSubmissions(sortedSubmissions);
@@ -94,36 +101,45 @@ const AdminPage: React.FC = () => {
                 setError('Failed to load data from the server. Is the backend running?');
                 console.error('Data loading error:', err);
             } finally {
-                setIsLoading(false);
+                setLoading(false);
             }
         };
 
         loadBackendData();
     }, []);
 
-    const handleUpdateStatus = async (trackId: string, status: 'approved' | 'rejected') => {
+    const handleStatusUpdate = async (trackId: string, status: 'approved' | 'rejected') => {
         try {
-            await axios.put(`http://localhost:3001/submissions/${trackId}`, { status });
-            // Optimistically update the UI
-            setSubmissions(submissions.map(s => s.id === trackId ? { ...s, status } : s));
-            // Re-fetch stats to update dashboard
-            const statsRes = await axios.get('http://localhost:3001/stats');
+            setLoading(true);
+            await api.patch(`/submissions/${trackId}`, { status });
+            // Refresh submissions and stats after update
+            const submissionsRes = await api.get('/submissions');
+            setSubmissions(submissionsRes.data.tracks);
+            const statsRes = await api.get('/stats');
             setStats(statsRes.data);
-        } catch (err) {
-            console.error(`Failed to ${status} submission:`, err);
+        } catch (error) {
+            console.error(`Failed to ${status} submission:`, error);
+            setError('Failed to update status. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
     const handleDelete = async (trackId: string) => {
-        if (window.confirm('Are you sure you want to permanently delete this submission?')) {
+        if (window.confirm('Are you sure you want to delete this submission permanently?')) {
             try {
-                await axios.delete(`http://localhost:3001/submissions/${trackId}`);
-                setSubmissions(submissions.filter(s => s.id !== trackId));
-                 const statsRes = await axios.get('http://localhost:3001/stats');
-                 setStats(statsRes.data);
-            } catch (err) {
-                console.error('Failed to delete submission:', err);
+                setLoading(true);
+                await api.delete(`/submissions/${trackId}`);
+                // Refresh submissions and stats after delete
+                const submissionsRes = await api.get('/submissions');
+                setSubmissions(submissionsRes.data.tracks);
+                const statsRes = await api.get('/stats');
+                setStats(statsRes.data);
+            } catch (error) {
+                console.error('Failed to delete submission:', error);
                 setError('Could not delete submission. Please try again.');
+            } finally {
+                setLoading(false);
             }
         }
     };
@@ -141,27 +157,28 @@ const AdminPage: React.FC = () => {
 
     const handleConfirmPublication = async () => {
         if (!selectedTrackForPublish || !manualTransactionHash) {
-            alert('Please enter a valid transaction hash.');
+            alert('Something went wrong. Please close the modal and try again.');
             return;
         }
-
         try {
-            // We'll create a new endpoint for this confirmation step
-            const response = await axios.post(`http://localhost:3001/submissions/${selectedTrackForPublish.id}/confirm-publication`, {
-                transactionHash: manualTransactionHash
+            setLoading(true);
+            const response = await api.post(`/submissions/${selectedTrackForPublish.id}/confirm-publication`, {
+                transactionHash: manualTransactionHash,
             });
 
-            if (response.data.track) {
-                // Update the UI
-                 setSubmissions(current => 
-                    current.map(t => t.id === selectedTrackForPublish.id ? response.data.track : t)
-                );
-                handleClosePublishModal();
-                alert('Publication confirmed successfully!');
-            }
+            // The backend now returns the updated track directly
+            const updatedTrack = response.data;
+            setSubmissions(current => 
+                current.map(t => t.id === updatedTrack.id ? updatedTrack : t)
+            );
+            handleClosePublishModal();
+            alert('Publication confirmed successfully!');
+
         } catch (error) {
             console.error('Failed to confirm publication:', error);
             alert('Failed to confirm publication. See console for details.');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -220,8 +237,8 @@ const AdminPage: React.FC = () => {
                                     {track.status === 'pending' && (
                                         <>
                                             {' | '}
-                                            <button onClick={() => handleUpdateStatus(track.id, 'approved')} style={{ color: 'green', marginLeft: '10px' }}>Approve</button>
-                                            <button onClick={() => handleUpdateStatus(track.id, 'rejected')} style={{ color: 'red', marginLeft: '5px' }}>Reject</button>
+                                            <button onClick={() => handleStatusUpdate(track.id, 'approved')} style={{ color: 'green', marginLeft: '10px' }}>Approve</button>
+                                            <button onClick={() => handleStatusUpdate(track.id, 'rejected')} style={{ color: 'red', marginLeft: '5px' }}>Reject</button>
                                         </>
                                     )}
                                     {track.status === 'approved' && (
