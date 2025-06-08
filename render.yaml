@@ -1,1 +1,16 @@
-
+disks:
+  - name: data
+    mountPath: /var/data
+    sizeGB: 1
+services:
+  - type: web
+    name: web3-music-backend
+    env: node
+    plan: starter
+    rootDir: backend
+    buildCommand: "yarn install && yarn build"
+    startCommand: "yarn start"
+    healthCheckPath: /
+    disk:
+      name: data
+      mountPath: /var/data
