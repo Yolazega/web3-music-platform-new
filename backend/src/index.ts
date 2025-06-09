@@ -106,7 +106,10 @@ const uploadToPinata = async (file: Express.Multer.File): Promise<string> => {
     }
     const url = `https://api.pinata.cloud/pinning/pinFileToIPFS`;
     const formData = new FormData();
-    formData.append('file', file.buffer, file.originalname);
+    formData.append('file', file.buffer, { 
+        filename: file.originalname, 
+        contentType: file.mimetype 
+    });
     const response = await axios.post(url, formData, {
         headers: {
             ...formData.getHeaders(),
