@@ -7,6 +7,7 @@ const UploadPage: React.FC = () => {
   const [artistName, setArtistName] = useState<string>('');
   const [trackTitle, setTrackTitle] = useState<string>('');
   const [genre, setGenre] = useState<string>('');
+  const [artistWallet, setArtistWallet] = useState<string>('');
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [isOwnerConfirmed, setIsOwnerConfirmed] = useState<boolean>(false);
@@ -26,6 +27,7 @@ const UploadPage: React.FC = () => {
     if (!artistName.trim()) { setFormError('Please enter your artist name.'); return; }
     if (!trackTitle.trim()) { setFormError('Please enter a track title.'); return; }
     if (!genre) { setFormError('Please select a genre.'); return; }
+    if (!artistWallet.trim() || !artistWallet.startsWith('0x')) { setFormError('Please enter a valid Polygon wallet address (starting with 0x).'); return; }
     if (!coverImageFile) { setFormError('Please select a cover image file.'); return; }
     if (!videoFile) { setFormError('Please select a video file.'); return; }
     if (!isOwnerConfirmed) { setFormError('Please confirm you own the rights.'); return; }
@@ -38,6 +40,7 @@ const UploadPage: React.FC = () => {
     formData.append('artistName', artistName);
     formData.append('trackTitle', trackTitle);
     formData.append('genre', genre);
+    formData.append('artistWallet', artistWallet);
     formData.append('coverImageFile', coverImageFile);
     formData.append('videoFile', videoFile);
 
@@ -55,6 +58,7 @@ const UploadPage: React.FC = () => {
             setArtistName('');
             setTrackTitle('');
             setGenre('');
+            setArtistWallet('');
             setCoverImageFile(null);
             setVideoFile(null);
             setIsOwnerConfirmed(false);
@@ -101,6 +105,20 @@ const UploadPage: React.FC = () => {
             disabled={isUploading} 
             style={{width: '300px'}}
         />
+      </div>
+
+      <div style={{ margin: '20px 0' }}>
+        <label htmlFor="artistWallet">Your Payout Wallet Address (Polygon):</label><br />
+        <input 
+            type="text" 
+            id="artistWallet" 
+            value={artistWallet} 
+            onChange={(e) => setArtistWallet(e.target.value)} 
+            placeholder="0x..." 
+            disabled={isUploading} 
+            style={{width: '300px'}}
+        />
+        <p><small>This is where any potential rewards will be sent. Please double-check it.</small></p>
       </div>
 
       <div style={{ margin: '20px 0' }}>

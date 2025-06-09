@@ -24,6 +24,7 @@ interface Track {
     artistName: string;
     trackTitle: string;
     genre: string;
+    artistWallet: string;
     coverImageUrl: string;
     videoUrl:string;
     status: 'pending' | 'approved' | 'rejected' | 'published';
@@ -115,7 +116,10 @@ app.post('/upload', upload.fields([
     { name: 'videoFile', maxCount: 1 }
 ]) as any, async (req: Request, res: Response) => {
     try {
-        const { artistName, trackTitle, genre } = req.body;
+        const { artistName, trackTitle, genre, artistWallet } = req.body;
+        if (!artistWallet || !artistWallet.startsWith('0x')) {
+            return res.status(400).json({ error: 'A valid artist wallet address is required.' });
+        }
         if (!req.files || !('coverImageFile' in req.files) || !('videoFile' in req.files)) {
             return res.status(400).json({ error: 'Cover image and video file are required.' });
         }
@@ -128,6 +132,7 @@ app.post('/upload', upload.fields([
             artistName,
             trackTitle,
             genre,
+            artistWallet,
             coverImageUrl,
             videoUrl,
             status: 'pending',
@@ -220,6 +225,7 @@ app.get('/submissions/approved-for-publishing', async (req: Request, res: Respon
                 genre: track.genre,
                 videoUrl: track.videoUrl,
                 coverImageUrl: track.coverImageUrl,
+                artistWallet: track.artistWallet,
             };
         });
 
