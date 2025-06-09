@@ -1,4 +1,4 @@
-import axepVotingAbi from '../artifacts/contracts/AxepVoting_Simple.sol/AxepVoting.json' assert { type: 'json' };
+import axepVotingAbi from '../artifacts/contracts/AxepVoting_Simple.sol/AxepVoting.json';
 import { Abi } from 'viem';
 
 export const AMOY_CHAIN_ID = '0x13882'; // 80002
@@ -14,7 +14,7 @@ export const AXP_TOKEN_CONTRACT_ADDRESS = '0xa1edD20366dbAc7341DE5fdb9FE1711Fb9E
 export const AXEP_ARTIST_NFT_CONTRACT_ADDRESS = '0x483eC66A0Ac12c985cbcad956996fEB40F020650';
 export const AXEP_VOTING_CONTRACT_ADDRESS = "0xD1ae6f716fE48feCF1D728112379a6708B943181";
 
-// The new, updated ABI from our compiled contract
+// The new, updated ABI from our compiled contract, correctly typed for wagmi
 export const AXEP_VOTING_CONTRACT_ABI = axepVotingAbi.abi as Abi;
 
 export const APPROVED_SHARING_PLATFORMS = ['TikTok', 'Instagram', 'Meta (Facebook)', 'X'];

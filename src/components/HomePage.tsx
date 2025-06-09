@@ -1,13 +1,21 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAccount, useBalance, useReadContracts } from 'wagmi';
 import { AXP_TOKEN_CONTRACT_ADDRESS, AMOY_CHAIN_ID, AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from 'config';
 import WinnerCard from './WinnerCard';
-import { Box, Typography, CircularProgress, Alert } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert, Container, Grid, Card, CardContent } from '@mui/material';
+import { Abi } from 'viem';
+
+// This defines the shape of a single contract call for wagmi's useReadContracts
+interface ContractReadCall {
+  address: `0x${string}`;
+  abi: Abi;
+  functionName: string;
+  args?: readonly unknown[];
+}
 
 const HomePage: React.FC = () => {
   const { address, chain } = useAccount();
-
   const { data: axpBalance } = useBalance({
     address,
     token: AXP_TOKEN_CONTRACT_ADDRESS as `0x${string}`,
@@ -34,14 +42,9 @@ const HomePage: React.FC = () => {
       query: { enabled: !!allTrackIds && allTrackIds.length > 0 },
   });
 
-  const tracks = useMemo(() => tracksData?.map(t => t.result) || [], [tracksData]);
+  const tracks = tracksData?.map(t => t.result) || [];
 
-  const winner = useMemo(() => {
-    if (!tracks || tracks.length === 0) return null;
-    // @ts-ignore
-    return tracks.reduce((prev, current) => (prev.votes > current.votes) ? prev : current);
-  }, [tracks]);
-
+  const winner = tracks.reduce((prev, current) => (prev.votes > current.votes) ? prev : current);
 
   const { data: artistData, isLoading: isLoadingArtist, error: errorArtist } = useReadContracts({
       contracts: winner ? [{
@@ -142,6 +145,63 @@ const HomePage: React.FC = () => {
       gap: '20px'
   };
 
+  // State to hold the formatted results from the contract reads
+  const [stats, setStats] = useState<{
+    balanceOf?: string;
+    getAirdropAmount?: string;
+    getWinnerCount?: string;
+  }>({});
+
+  // The array of contract calls we want to make
+  const contracts: readonly ContractReadCall[] = address ? [
+    {
+      address: AXEP_VOTING_CONTRACT_ADDRESS,
+      abi: AXEP_VOTING_CONTRACT_ABI,
+      functionName: 'balanceOf',
+      args: [address]
+    },
+    {
+      address: AXEP_VOTING_CONTRACT_ADDRESS,
+      abi: AXEP_VOTING_CONTRACT_ABI,
+      functionName: 'getAirdropAmount',
+      args: [address]
+    },
+    {
+      address: AXEP_VOTING_CONTRACT_ADDRESS,
+      abi: AXEP_VOTING_CONTRACT_ABI,
+      functionName: 'getWinnerCount',
+      args: [address]
+    },
+  ] : [];
+
+  // The wagmi hook to read from the contracts
+  const { data: contractData, isLoading: isLoadingContractData, isError, error: contractError } = useReadContracts({
+    contracts, // This is now correctly typed
+    query: {
+      enabled: address && !!address, // Only run query if connected
+      refetchInterval: 15000, // Refetch every 15 seconds
+    }
+  });
+
+  // Helper function to format bigint values from the contract
+  const formatBigInt = (value?: unknown): string => {
+    if (typeof value !== 'bigint') return 'N/A';
+    // A simple formatting for 18 decimal places
+    const number = Number(value) / 1e18;
+    return number.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  };
+
+  // Effect to process the data when it comes back from the hook
+  useEffect(() => {
+    if (contractData) {
+      setStats({
+        balanceOf: formatBigInt(contractData[0]?.result),
+        getAirdropAmount: formatBigInt(contractData[1]?.result),
+        getWinnerCount: typeof contractData[2]?.result === 'bigint' ? contractData[2].result.toString() : 'N/A',
+      });
+    }
+  }, [contractData]);
+
   const renderWinnerSection = () => {
     if (isLoadingTrackIds || isLoadingTracks || isLoadingArtist) {
       return <CircularProgress />;
@@ -201,6 +261,59 @@ const HomePage: React.FC = () => {
               <li><Link to="/nftshop">NFT Shop</Link></li>
             </ul>
           </nav>
+      )}
+
+      {isLoadingContractData && <CircularProgress />}
+      
+      {isError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Error fetching contract data: {contractError?.shortMessage || 'An unknown error occurred.'}
+        </Alert>
+      )}
+
+      {!address && (
+        <Alert severity="info">Please connect your wallet to view your dashboard.</Alert>
+      )}
+
+      {address && (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" gutterBottom>
+                  Your AXP Balance
+                </Typography>
+                <Typography variant="h5" component="div">
+                  {stats.balanceOf ?? '...'} AXP
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" gutterBottom>
+                  Claimable Airdrop
+                </Typography>
+                <Typography variant="h5" component="div">
+                  {stats.getAirdropAmount ?? '...'} AXP
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <Card>
+              <CardContent>
+                <Typography color="text.secondary" gutterBottom>
+                  Your Winning Tracks
+                </Typography>
+                <Typography variant="h5" component="div">
+                  {stats.getWinnerCount ?? '...'}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       )}
     </div>
   );
