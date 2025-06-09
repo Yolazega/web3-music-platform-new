@@ -31,6 +31,18 @@ interface OnChainTrack {
     votes: bigint;
 }
 
+// Helper function to safely extract tracks from API responses
+const getTracksFromResponse = (responseData: any): Track[] => {
+    if (Array.isArray(responseData)) {
+        return responseData; // Handles old format: [...]
+    }
+    if (responseData && Array.isArray(responseData.tracks)) {
+        return responseData.tracks; // Handles new format: { tracks: [...] }
+    }
+    console.warn("Received unexpected data format from /submissions. Defaulting to empty array.", responseData);
+    return []; // Fallback for unexpected formats
+};
+
 const AdminPage: React.FC = () => {
     const [submissions, setSubmissions] = useState<Track[]>([]);
     const [isLoading, setLoading] = useState<boolean>(true);
@@ -90,8 +102,10 @@ const AdminPage: React.FC = () => {
                     api.get('/stats')
                 ]);
 
+                const safeTracks = getTracksFromResponse(submissionsRes.data);
+
                 // Sort submissions by creation date, newest first
-                const sortedSubmissions = submissionsRes.data.tracks.sort((a: Track, b: Track) => 
+                const sortedSubmissions = safeTracks.sort((a: Track, b: Track) => 
                     new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
                 );
                 setSubmissions(sortedSubmissions);
@@ -114,7 +128,7 @@ const AdminPage: React.FC = () => {
             await api.patch(`/submissions/${trackId}`, { status });
             // Refresh submissions and stats after update
             const submissionsRes = await api.get('/submissions');
-            setSubmissions(submissionsRes.data.tracks);
+            setSubmissions(getTracksFromResponse(submissionsRes.data));
             const statsRes = await api.get('/stats');
             setStats(statsRes.data);
         } catch (error) {
@@ -132,7 +146,7 @@ const AdminPage: React.FC = () => {
                 await api.delete(`/submissions/${trackId}`);
                 // Refresh submissions and stats after delete
                 const submissionsRes = await api.get('/submissions');
-                setSubmissions(submissionsRes.data.tracks);
+                setSubmissions(getTracksFromResponse(submissionsRes.data));
                 const statsRes = await api.get('/stats');
                 setStats(statsRes.data);
             } catch (error) {

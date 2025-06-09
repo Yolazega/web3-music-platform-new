@@ -43,7 +43,7 @@ const amoy = {
 
 export const wagmiConfig = getDefaultConfig({
   appName: 'Web3 Music Platform',
-  projectId: 'c3c741154a4395a6e877ab4335c05562',
+  projectId: '71c23f5b5f6d09f86ec684747eca45cb',
   chains: [amoy],
   ssr: false,
 });

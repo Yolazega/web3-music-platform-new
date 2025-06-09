@@ -48,7 +48,12 @@ const initializeDatabase = async () => {
 };
 
 // --- Middlewares ---
-app.use(cors()); 
+// Configure CORS to allow requests from your specific frontend URL
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); 
 

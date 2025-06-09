@@ -18,6 +18,18 @@ interface Track {
     votes: bigint;
 }
 
+// Helper function to safely extract tracks from API responses
+const getTracksFromResponse = (responseData: any): Track[] => {
+    if (Array.isArray(responseData)) {
+        return responseData; // Handles old format: [...]
+    }
+    if (responseData && Array.isArray(responseData.tracks)) {
+        return responseData.tracks; // Handles new format: { tracks: [...] }
+    }
+    console.warn("Received unexpected data format from /submissions. Defaulting to empty array.", responseData);
+    return []; // Fallback for unexpected formats
+};
+
 const VotingPage: React.FC = () => {
     const { address, chain } = useAccount();
     const { data: hash, writeContract, isPending: isVoting, error: writeError } = useWriteContract();
@@ -52,7 +64,7 @@ const VotingPage: React.FC = () => {
             try {
                 setLoading(true);
                 const response = await api.get('/submissions?status=approved');
-                setTracks(response.data);
+                setTracks(getTracksFromResponse(response.data));
             } catch (err) {
                 console.error('Failed to fetch tracks:', err);
                 setError('Failed to fetch tracks. Please try again later.');
