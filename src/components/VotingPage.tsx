@@ -52,7 +52,7 @@ const VotingPage: React.FC = () => {
         address: AXEP_VOTING_CONTRACT_ADDRESS,
     });
 
-    const { data: trackDetailsData, isLoading: trackDetailsLoading, isError: trackDetailsError } = useReadContract({
+    const { data: trackDetailsData, isLoading: trackDetailsLoading } = useReadContract({
         abi: axepVotingAbi,
         address: AXEP_VOTING_CONTRACT_ADDRESS,
     });
@@ -121,9 +121,9 @@ const VotingPage: React.FC = () => {
 
             {isLoading && <p>Loading tracks...</p>}
             
-            {(error || writeError || receiptError || trackIdsError || trackDetailsError) && (
+            {(error || writeError || receiptError || trackIdsError) && (
                 <p style={{ color: 'red' }}>
-                    Error: {error || writeError?.message || receiptError?.message || trackIdsError?.message || trackDetailsError?.message}
+                    Error: {error || writeError?.message || receiptError?.message || trackIdsError?.message}
                 </p>
             )}
 
