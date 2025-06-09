@@ -1,16 +1,14 @@
 export interface Track {
   id: string;
-  artistId: string;
-  ipfsHash: string;
-  uploadTimestamp: number;
-  votingWeek: number;
-  isActive: boolean;
+  artistName: string;
+  trackTitle: string;
   genre: string;
-  title?: string;
-  artistName?: string;
-  audioIpfsCid?: string;
-  coverImageIpfsCid?: string;
-  votes?: number;
+  coverImageUrl: string;
+  videoUrl: string;
+  status: 'pending' | 'approved' | 'rejected' | 'published';
+  submittedAt: string;
+  reportCount: number;
+  transactionHash?: string;
 }
 
 export type Genre = string; 

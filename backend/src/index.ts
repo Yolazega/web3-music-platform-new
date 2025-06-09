@@ -32,8 +32,15 @@ interface Track {
     transactionHash?: string;
 }
 
+interface Share {
+    walletAddress: string;
+    trackId: string;
+    sharedAt: string;
+}
+
 interface Database {
     tracks: Track[];
+    shares: Share[];
 }
 
 // Function to ensure directory and file exist
@@ -43,7 +50,7 @@ const initializeDatabase = async () => {
         await fs.access(dbPath);
     } catch (error) {
         console.log('Database file not found. Creating a new one.');
-        await fs.writeFile(dbPath, JSON.stringify({ tracks: [] }), 'utf-8');
+        await fs.writeFile(dbPath, JSON.stringify({ tracks: [], shares: [] }), 'utf-8');
     }
 };
 
@@ -194,6 +201,35 @@ app.patch('/submissions/:id', async (req: Request, res: Response) => {
     }
 });
 
+// New endpoint to get all approved tracks formatted for manual publishing
+app.get('/submissions/approved-for-publishing', async (req: Request, res: Response) => {
+    try {
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+        const approvedTracks = db.tracks.filter(track => track.status === 'approved');
+
+        if (approvedTracks.length === 0) {
+            return res.status(404).json({ message: 'No approved tracks ready for publishing.' });
+        }
+
+        const formattedTracks = approvedTracks.map(track => {
+            return {
+                id: track.id,
+                artistName: track.artistName,
+                trackTitle: track.trackTitle,
+                genre: track.genre,
+                videoUrl: track.videoUrl,
+                coverImageUrl: track.coverImageUrl,
+            };
+        });
+
+        res.status(200).json({ tracks: formattedTracks });
+    } catch (error) {
+        console.error('Error fetching approved tracks:', error);
+        res.status(500).json({ error: 'Failed to retrieve approved tracks for publishing.' });
+    }
+});
+
 // Confirm publication and store transaction hash
 app.post('/submissions/:id/confirm-publication', async (req: Request, res: Response) => {
     const { id } = req.params;
@@ -297,6 +333,90 @@ app.get('/stats', async (req: Request, res: Response) => {
     }
 });
 
+app.post('/shares', async (req: Request, res: Response) => {
+    const { walletAddress, trackId } = req.body;
+
+    if (!walletAddress || !trackId) {
+        return res.status(400).json({ error: 'walletAddress and trackId are required.' });
+    }
+
+    try {
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+
+        const newShare: Share = {
+            walletAddress,
+            trackId,
+            sharedAt: new Date().toISOString()
+        };
+
+        if (!db.shares) {
+            db.shares = [];
+        }
+        db.shares.push(newShare);
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+
+        res.status(201).json({ message: 'Share recorded successfully.', share: newShare });
+    } catch (error) {
+        console.error('Error recording share:', error);
+        res.status(500).json({ error: 'Failed to record share.' });
+    }
+});
+
+app.get('/rewards-batch', async (req: Request, res: Response) => {
+    const REWARD_PER_SHARE = 10; // This can be configured later
+
+    try {
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+        const shares = db.shares || [];
+
+        if (shares.length === 0) {
+            return res.status(200).json({ message: 'No shares to process.', rewards: [], csv: '', totalShares: 0, totalWallets: 0, totalTokens: 0 });
+        }
+
+        const rewards: { [key: string]: number } = {};
+        for (const share of shares) {
+            rewards[share.walletAddress] = (rewards[share.walletAddress] || 0) + REWARD_PER_SHARE;
+        }
+        
+        const rewardsArray = Object.entries(rewards).map(([walletAddress, amount]) => ({
+            walletAddress,
+            amount
+        }));
+
+        const csv = rewardsArray.map(r => `${r.walletAddress},${r.amount}`).join('\n');
+
+        res.status(200).json({ 
+            rewards: rewardsArray, 
+            csv,
+            totalShares: shares.length,
+            totalWallets: rewardsArray.length,
+            totalTokens: shares.length * REWARD_PER_SHARE
+        });
+
+    } catch (error) {
+        console.error('Error generating rewards batch:', error);
+        res.status(500).json({ error: 'Failed to generate rewards batch.' });
+    }
+});
+
+app.delete('/shares', async (req: Request, res: Response) => {
+    try {
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+        
+        const clearedSharesCount = db.shares ? db.shares.length : 0;
+        db.shares = []; // Clear the shares array
+
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+
+        res.status(200).json({ message: `Successfully cleared ${clearedSharesCount} share records.` });
+    } catch (error) {
+        console.error('Error clearing shares:', error);
+        res.status(500).json({ error: 'Failed to clear shares.' });
+    }
+});
 
 // --- Server Initialization ---
 const startServer = async () => {
