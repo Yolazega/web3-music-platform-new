@@ -128,41 +128,14 @@ contract AxepVoting {
         require(artistWallets.length == coverImageUrls.length, "Array length mismatch");
 
         for (uint i = 0; i < artistWallets.length; i++) {
-            address artistWallet = artistWallets[i];
-            string calldata artistName = artistNames[i];
-            string calldata trackTitle = trackTitles[i];
-            string calldata genre = genres[i];
-
-            // This logic is adapted from registerArtistAndUploadFirstTrack
-            // It assumes a new artist for each track for simplicity in batching.
-            // A more complex system might check for existing artists.
-            if (artistIdByWallet[artistWallet] == 0 && _isValidGenre(genre)) {
-                uint256 artistId = _nextArtistId++;
-                artists[artistId] = Artist({
-                    id: artistId,
-                    name: artistName,
-                    artistWallet: payable(artistWallet),
-                    isRegistered: true
-                });
-                artistIdByWallet[artistWallet] = artistId;
-                emit ArtistRegistered(artistId, artistName, artistWallet);
-
-                uint256 trackId = _nextTrackId++;
-                tracks[trackId] = Track({
-                    id: trackId,
-                    artistId: artistId,
-                    title: trackTitle,
-                    genre: genre,
-                    videoUrl: videoUrls[i],
-                    coverImageUrl: coverImageUrls[i],
-                    uploadTimestamp: block.timestamp,
-                    votes: 0
-                });
-
-                _trackIdsByGenre[genre].push(trackId);
-                allTrackIds.push(trackId);
-                emit TrackUploaded(trackId, artistId, trackTitle, genre, videoUrls[i]);
-            }
+            _registerSingleTrackFromBatch(
+                artistWallets[i],
+                artistNames[i],
+                trackTitles[i],
+                genres[i],
+                videoUrls[i],
+                coverImageUrls[i]
+            );
         }
     }
 
@@ -196,6 +169,45 @@ contract AxepVoting {
     }
 
     // --- Internal Functions ---
+
+    function _registerSingleTrackFromBatch(
+        address artistWallet,
+        string calldata artistName,
+        string calldata trackTitle,
+        string calldata genre,
+        string calldata videoUrl,
+        string calldata coverImageUrl
+    ) internal {
+        if (artistIdByWallet[artistWallet] == 0 && _isValidGenre(genre)) {
+            uint256 artistId = _nextArtistId++;
+            artists[artistId] = Artist({
+                id: artistId,
+                name: artistName,
+                artistWallet: payable(artistWallet),
+                isRegistered: true
+            });
+            artistIdByWallet[artistWallet] = artistId;
+            emit ArtistRegistered(artistId, artistName, artistWallet);
+
+            uint256 trackId = _nextTrackId++;
+            tracks[trackId] = Track({
+                id: trackId,
+                artistId: artistId,
+                title: trackTitle,
+                genre: genre,
+                videoUrl: videoUrl,
+                coverImageUrl: coverImageUrl,
+                uploadTimestamp: block.timestamp,
+                votes: 0
+            });
+
+            _trackIdsByGenre[genre].push(trackId);
+            allTrackIds.push(trackId);
+
+            emit TrackUploaded(trackId, artistId, trackTitle, genre, videoUrl);
+        }
+    }
+
     function _isValidGenre(string calldata genreName) internal view returns (bool) {
         for (uint i = 0; i < officialGenres.length; i++) {
             if (keccak256(abi.encodePacked(officialGenres[i])) == keccak256(abi.encodePacked(genreName))) {
