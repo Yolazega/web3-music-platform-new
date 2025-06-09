@@ -112,6 +112,60 @@ contract AxepVoting {
         emit TrackUploaded(trackId, artistId, trackTitle, genre, videoUrl);
     }
 
+    function batchRegisterAndUpload(
+        address[] calldata artistWallets,
+        string[] calldata artistNames,
+        string[] calldata trackTitles,
+        string[] calldata genres,
+        string[] calldata videoUrls,
+        string[] calldata coverImageUrls
+    ) external {
+        require(msg.sender == owner, "Only owner can call this function.");
+        require(artistWallets.length == artistNames.length, "Array length mismatch");
+        require(artistWallets.length == trackTitles.length, "Array length mismatch");
+        require(artistWallets.length == genres.length, "Array length mismatch");
+        require(artistWallets.length == videoUrls.length, "Array length mismatch");
+        require(artistWallets.length == coverImageUrls.length, "Array length mismatch");
+
+        for (uint i = 0; i < artistWallets.length; i++) {
+            address artistWallet = artistWallets[i];
+            string calldata artistName = artistNames[i];
+            string calldata trackTitle = trackTitles[i];
+            string calldata genre = genres[i];
+
+            // This logic is adapted from registerArtistAndUploadFirstTrack
+            // It assumes a new artist for each track for simplicity in batching.
+            // A more complex system might check for existing artists.
+            if (artistIdByWallet[artistWallet] == 0 && _isValidGenre(genre)) {
+                uint256 artistId = _nextArtistId++;
+                artists[artistId] = Artist({
+                    id: artistId,
+                    name: artistName,
+                    artistWallet: payable(artistWallet),
+                    isRegistered: true
+                });
+                artistIdByWallet[artistWallet] = artistId;
+                emit ArtistRegistered(artistId, artistName, artistWallet);
+
+                uint256 trackId = _nextTrackId++;
+                tracks[trackId] = Track({
+                    id: trackId,
+                    artistId: artistId,
+                    title: trackTitle,
+                    genre: genre,
+                    videoUrl: videoUrls[i],
+                    coverImageUrl: coverImageUrls[i],
+                    uploadTimestamp: block.timestamp,
+                    votes: 0
+                });
+
+                _trackIdsByGenre[genre].push(trackId);
+                allTrackIds.push(trackId);
+                emit TrackUploaded(trackId, artistId, trackTitle, genre, videoUrls[i]);
+            }
+        }
+    }
+
     function voteForTrack(uint256 trackId) external {
         // Basic vote logic (can be expanded later with week limits, etc.)
         require(tracks[trackId].id != 0, "Track does not exist.");

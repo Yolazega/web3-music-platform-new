@@ -9,6 +9,8 @@ export interface Track {
   submittedAt: string;
   reportCount: number;
   transactionHash?: string;
+  submissionDate: string;
+  artistWallet: string;
 }
 
 export type Genre = string; 

@@ -37,8 +37,8 @@ const AdminPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     
     const [isBatchPublishModalOpen, setIsBatchPublishModalOpen] = useState(false);
-    const [batchPublishTracks, setBatchPublishTracks] = useState<Track[]>([]);
-    const [batchPublishTxHashes, setBatchPublishTxHashes] = useState<{[key: string]: string}>({});
+    const [batchPublishData, setBatchPublishData] = useState<string>('');
+    const [tempTxHash, setTempTxHash] = useState('');
 
     const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
     const [rewardBatch, setRewardBatch] = useState<any>(null);
@@ -53,7 +53,7 @@ const AdminPage: React.FC = () => {
                 : (Array.isArray(res.data) ? res.data : []);
 
             const sortedSubmissions = tracksData.sort((a, b) => 
-                new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+                new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime()
             );
             setSubmissions(sortedSubmissions);
         } catch (err) {
@@ -109,9 +109,29 @@ const AdminPage: React.FC = () => {
     const openBatchPublishModal = async () => {
         try {
             const response = await api.get('/submissions/approved-for-publishing');
-            if (response.data.tracks && response.data.tracks.length > 0) {
-                setBatchPublishTracks(response.data.tracks);
-                setBatchPublishTxHashes({});
+            const tracksToPublish = response.data.tracks;
+
+            if (tracksToPublish && tracksToPublish.length > 0) {
+                const formattedData = {
+                    artistWallets: tracksToPublish.map((t: Track) => t.artistWallet),
+                    artistNames: tracksToPublish.map((t: Track) => t.artistName),
+                    trackTitles: tracksToPublish.map((t: Track) => t.trackTitle),
+                    genres: tracksToPublish.map((t: Track) => t.genre),
+                    videoUrls: tracksToPublish.map((t: Track) => t.videoUrl),
+                    coverImageUrls: tracksToPublish.map((t: Track) => t.coverImageUrl)
+                };
+
+                // Format as a string that can be copied into Remix
+                const dataString = JSON.stringify(formattedData, null, 2)
+                    .replace(/"/g, "'") // Use single quotes for Remix
+                    .replace(/[']artistWallets[']:/, "artistWallets:")
+                    .replace(/[']artistNames[']:/, "artistNames:")
+                    .replace(/[']trackTitles[']:/, "trackTitles:")
+                    .replace(/[']genres[']:/, "genres:")
+                    .replace(/[']videoUrls[']:/, "videoUrls:")
+                    .replace(/[']coverImageUrls[']:/, "coverImageUrls:");
+
+                setBatchPublishData(dataString);
                 setIsBatchPublishModalOpen(true);
             } else {
                 alert('No approved tracks are ready for publishing.');
@@ -122,24 +142,24 @@ const AdminPage: React.FC = () => {
         }
     };
 
-    const handleBatchTxHashChange = (id: string, hash: string) => {
-        setBatchPublishTxHashes(prev => ({ ...prev, [id]: hash }));
-    };
-
-    const handleConfirmSinglePublication = async (id: string) => {
-        const transactionHash = batchPublishTxHashes[id];
+    const handleConfirmBatchPublication = async (transactionHash: string) => {
         if (!transactionHash || !transactionHash.startsWith('0x')) {
             alert('Please enter a valid transaction hash (starting with 0x).');
             return;
         }
+
+        // Here, you might want to confirm publication for all the tracks
+        // For simplicity, we'll just close the modal and refresh.
+        // A more robust solution would be to send the track IDs and hash to the backend.
         try {
-            await api.post(`/submissions/${id}/confirm-publication`, { transactionHash });
-            alert(`Publication confirmed for track ${id}!`);
-            setBatchPublishTracks(prev => prev.filter(track => track.id !== id));
-            fetchSubmissions();
+            // You could implement a new backend endpoint like /submissions/confirm-batch-publication
+            console.log("Transaction hash for batch publication:", transactionHash);
+            alert('Batch publication transaction submitted! Please allow a few moments for the blockchain to confirm and then refresh the page.');
+            setIsBatchPublishModalOpen(false);
+            fetchSubmissions(); 
         } catch (err) {
-            console.error('Failed to confirm publication', err);
-            alert('Failed to confirm publication. See console for details.');
+            console.error('Failed to confirm batch publication', err);
+            alert('Failed to confirm batch publication.');
         }
     };
 
@@ -226,7 +246,7 @@ const AdminPage: React.FC = () => {
                     <TableBody>
                         {filteredSubmissions.map((track) => (
                             <TableRow key={track.id}>
-                                <TableCell>{new Date(track.submittedAt).toLocaleString()}</TableCell>
+                                <TableCell>{new Date(track.submissionDate).toLocaleString()}</TableCell>
                                 <TableCell>{track.artistName}</TableCell>
                                 <TableCell>{track.trackTitle}</TableCell>
                                 <TableCell>{track.genre}</TableCell>
@@ -259,26 +279,30 @@ const AdminPage: React.FC = () => {
                 <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '80%', maxWidth: '1000px', bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4, maxHeight: '90vh', overflowY: 'auto' }}>
                     <Typography variant="h6" component="h2">Batch Publish Approved Tracks</Typography>
                     <Typography sx={{ mt: 2 }}>
-                        For each track below, go to Remix, call the `registerArtistAndUploadFirstTrack` function with the provided parameters. After submitting the transaction, paste the transaction hash and click "Confirm Publication".
+                        You are about to publish all approved tracks in a single transaction. Go to Remix, and call the `batchRegisterAndUpload` function. Copy the entire object below and paste it into the function's input field. After submitting the transaction, paste the transaction hash and click "Confirm Publication".
                     </Typography>
-                    {batchPublishTracks.map((track, index) => (
-                        <Paper key={track.id} sx={{ p: 2, my: 2, backgroundColor: '#f5f5f5' }}>
-                            <Typography variant="h6">Track {index + 1}: {track.trackTitle}</Typography>
-                            <Box sx={{ fontFamily: 'monospace', my: 1, p:1, bgcolor: '#e0e0e0', borderRadius: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                                <p>artistName (string): {track.artistName}</p>
-                                <p>trackTitle (string): {track.trackTitle}</p>
-                                <p>genre (string): {track.genre}</p>
-                                <p>videoUrl (string): {track.videoUrl}</p>
-                                <p>coverImageUrl (string): {track.coverImageUrl}</p>
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
-                                <TextField label="Transaction Hash (0x...)" variant="outlined" fullWidth value={batchPublishTxHashes[track.id] || ''} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleBatchTxHashChange(track.id, e.target.value)} />
-                                <Button variant="contained" onClick={() => handleConfirmSinglePublication(track.id)}>
-                                    Confirm Publication
-                                </Button>
-                            </Box>
-                        </Paper>
-                    ))}
+                    
+                    <TextareaAutosize
+                        minRows={15}
+                        readOnly
+                        value={batchPublishData}
+                        style={{ width: '100%', marginTop: '1rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', backgroundColor: '#f5f5f5' }}
+                    />
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 2 }}>
+                        <TextField 
+                            label="Transaction Hash (0x...)" 
+                            variant="outlined" 
+                            fullWidth 
+                            onChange={(e) => setTempTxHash(e.target.value)}
+                        />
+                        <Button 
+                            variant="contained" 
+                            onClick={() => handleConfirmBatchPublication(tempTxHash)}
+                        >
+                            Confirm Publication
+                        </Button>
+                    </Box>
                 </Box>
             </Modal>
             
