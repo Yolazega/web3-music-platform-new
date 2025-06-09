@@ -1,17 +1,14 @@
-import '@rainbow-me/rainbowkit/styles.css';
+import { WagmiProvider, createConfig } from 'wagmi';
+import { polygonAmoy as amoy } from 'wagmi/chains';
+import {
+  QueryClientProvider,
+  QueryClient,
+} from "@tanstack/react-query";
 import {
   RainbowKitProvider,
   getDefaultConfig,
   ConnectButton,
 } from '@rainbow-me/rainbowkit';
-import { WagmiProvider } from 'wagmi';
-import * as wagmiChains from 'wagmi/chains';
-import { http } from 'wagmi';
-import {
-  QueryClientProvider,
-  QueryClient,
-} from "@tanstack/react-query";
-import React from 'react';
 import {
   BrowserRouter as Router,
   Routes,
@@ -19,6 +16,7 @@ import {
   Link
 } from 'react-router-dom';
 import './App.css';
+import '@rainbow-me/rainbowkit/styles.css';
 
 import HomePage from './components/HomePage';
 import VotingPage from './components/VotingPage';
@@ -27,20 +25,7 @@ import TokenReward from './components/TokenReward';
 import NFTShop from './components/NFTShop';
 import AdminPage from './components/AdminPage';
 
-// Define the Amoy chain
-const amoy = {
-  id: 80002,
-  name: 'Polygon Amoy',
-  nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
-  rpcUrls: {
-    default: { http: ['https://polygon-amoy.g.alchemy.com/v2/zXMhgwWnKvdqLtEMZmth1'] },
-  },
-  blockExplorers: {
-    default: { name: 'PolygonScan', url: 'https://www.oklink.com/amoy' },
-  },
-  testnet: true,
-} as const satisfies wagmiChains.Chain;
-
+// Setup wagmi config
 export const wagmiConfig = getDefaultConfig({
   appName: 'Web3 Music Platform',
   projectId: '71c23f5b5f6d09f86ec684747eca45cb',

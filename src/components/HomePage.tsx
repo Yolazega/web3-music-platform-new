@@ -1,7 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAccount, useBalance } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { AXP_TOKEN_CONTRACT_ADDRESS, AMOY_CHAIN_ID } from 'config';
 
 const HomePage: React.FC = () => {

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useReadContracts } from 'wagmi';
+import { useState, useEffect } from 'react';
+import { useReadContracts, useAccount } from 'wagmi';
 import api from '../services/api';
 import { AXEP_VOTING_CONTRACT_ADDRESS } from 'config';
 import { axepVotingAbi } from 'contracts/contract';
@@ -53,8 +53,11 @@ const AdminPage: React.FC = () => {
     const [selectedTrackForPublish, setSelectedTrackForPublish] = useState<Track | null>(null);
     const [manualTransactionHash, setManualTransactionHash] = useState('');
 
-    // --- Fetching on-chain data from the smart contract ---
-    const { data: onChainData, isError: isOnChainError, isLoading: isOnChainLoading } = useReadContracts({
+    // Fetch on-chain data
+    const { 
+        data: onChainData, 
+        isFetching: isOnChainFetching 
+    } = useReadContracts({
         contracts: [
             {
                 address: AXEP_VOTING_CONTRACT_ADDRESS,

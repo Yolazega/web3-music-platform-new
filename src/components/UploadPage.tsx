@@ -1,13 +1,6 @@
 import React, { useState, type ChangeEvent, useEffect } from 'react';
 import api from '../services/api';
 
-const GENRES = [
-    'Pop', 'Rock', 'Hip-Hop', 'R&B', 'Country', 'Jazz', 'Electronic',
-    'Classical', 'Reggae', 'Blues', 'Folk', 'Metal', 'Punk', 'Alternative',
-    'Indie', 'Funk', 'Soul', 'Gospel', 'Latin', 'K-Pop',
-    'Afrobeat', 'Dancehall', 'Ambient', 'Techno', 'House'
-];
-
 const UploadPage: React.FC = () => {
   // Removed all wagmi hooks (useAccount, useWriteContract, etc.)
 

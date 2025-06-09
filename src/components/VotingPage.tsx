@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useReadContracts } from 'wagmi';
 import { AXEP_VOTING_CONTRACT_ADDRESS, AMOY_CHAIN_ID } from 'config';
 import { axepVotingAbi } from 'contracts/contract';
-import { type Abi } from 'viem';
 import api from '../services/api';
-import axios from 'axios';
 
 // Define a type for the track data returned by the contract
 interface Track {
@@ -35,8 +33,10 @@ const VotingPage: React.FC = () => {
     const { data: hash, writeContract, isPending: isVoting, error: writeError } = useWriteContract();
 
     const [tracks, setTracks] = useState<Track[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
+    const [votedTrackId, setVotedTrackId] = useState<number | null>(null);
+    const [loading, setLoading] = useState<boolean>(true);
     const [reportedTracks, setReportedTracks] = useState<Set<bigint>>(new Set());
 
     const { data: allTrackIds, error: trackIdsError, isLoading: isLoadingTrackIds } = useReadContract({
@@ -47,16 +47,14 @@ const VotingPage: React.FC = () => {
 
     const trackIds = allTrackIds as bigint[] | undefined;
 
-    const { data: trackDetailsData, error: trackDetailsError, isLoading: isLoadingTrackDetails } = useReadContracts({
-        contracts: trackIds?.map(id => ({
-            address: AXEP_VOTING_CONTRACT_ADDRESS as `0x${string}`,
-            abi: axepVotingAbi,
-            functionName: 'getTrack',
-            args: [id],
-        })) ?? [],
-        query: {
-            enabled: !!trackIds && trackIds.length > 0,
-        }
+    const { data: onChainTracks, isLoading: onChainLoading, isError: onChainError, refetch } = useReadContract({
+        abi: axepVotingAbi,
+        address: AXEP_VOTING_CONTRACT_ADDRESS,
+    });
+
+    const { data: trackDetailsData, isLoading: trackDetailsLoading, isError: trackDetailsError } = useReadContract({
+        abi: axepVotingAbi,
+        address: AXEP_VOTING_CONTRACT_ADDRESS,
     });
 
     useEffect(() => {
@@ -109,7 +107,7 @@ const VotingPage: React.FC = () => {
         }
     };
 
-    const isLoading = isLoadingTrackIds || isLoadingTrackDetails;
+    const isLoading = isLoadingTrackIds || trackDetailsLoading;
 
     if (!address) return <p>Please connect your wallet to view and vote for tracks.</p>;
     if (!isConnectedOnAmoy) {
