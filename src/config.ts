@@ -1,4 +1,5 @@
-import axepVotingAbi from '../artifacts/contracts/AxepVoting_Simple.sol/AxepVoting.json';
+import axepVotingAbi from '../artifacts/contracts/AxepVoting_Simple.sol/AxepVoting.json' assert { type: 'json' };
+import { Abi } from 'viem';
 
 export const AMOY_CHAIN_ID = '0x13882'; // 80002
 export const AMOY_CHAIN_NAME = 'Polygon Amoy Testnet';
@@ -14,7 +15,7 @@ export const AXEP_ARTIST_NFT_CONTRACT_ADDRESS = '0x483eC66A0Ac12c985cbcad956996f
 export const AXEP_VOTING_CONTRACT_ADDRESS = "0xD1ae6f716fE48feCF1D728112379a6708B943181";
 
 // The new, updated ABI from our compiled contract
-export const AXEP_VOTING_CONTRACT_ABI = axepVotingAbi.abi;
+export const AXEP_VOTING_CONTRACT_ABI = axepVotingAbi.abi as Abi;
 
 export const APPROVED_SHARING_PLATFORMS = ['TikTok', 'Instagram', 'Meta (Facebook)', 'X'];
 export const SHARING_HASHTAG = '#AXEP';
