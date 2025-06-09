@@ -49,8 +49,21 @@ const initializeDatabase = async () => {
 
 // --- Middlewares ---
 // Configure CORS to allow requests from your specific frontend URL
+const allowedOrigins = [
+    'http://localhost:5173', // For local development
+    'https://web3-music-platform-new.vercel.app' // For deployed frontend
+];
+
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
