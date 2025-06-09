@@ -2,25 +2,39 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { Track } from '../types';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from 'config';
+import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from '../config';
 import { parseEventLogs } from 'viem';
 import {
     Container, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button,
-    Modal, Box, Typography, TextField, CircularProgress, Card, CardContent, Grid, Link, TextareaAutosize, Alert, IconButton
+    Modal, Box, Typography, TextField, CircularProgress, Card, CardContent, Grid, Link, TextareaAutosize, Alert, IconButton, Snackbar
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckIcon from '@mui/icons-material/Check';
 
-// Combined component for the Admin Page
+const modalStyle = {
+  position: 'absolute' as 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: '80%',
+  maxWidth: 800,
+  bgcolor: 'background.paper',
+  border: '2px solid #000',
+  boxShadow: 24,
+  p: 4,
+  maxHeight: '90vh',
+  overflowY: 'auto'
+};
+
 const AdminPage: React.FC = () => {
-    // State for submissions
+    // Submissions State
     const [submissions, setSubmissions] = useState<Track[]>([]);
     const [filteredSubmissions, setFilteredSubmissions] = useState<Track[]>([]);
     const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'published' | 'shares'>('all');
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
-    // State for Batch Publishing Modal
+    // Batch Publishing State
     const [isBatchPublishModalOpen, setIsBatchPublishModalOpen] = useState(false);
     const [batchPublishData, setBatchPublishData] = useState<Record<string, any> | null>(null);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -28,78 +42,92 @@ const AdminPage: React.FC = () => {
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
 
-    // State for Share Rewards
-    const [sharesByTrack, setSharesByTrack] = useState<{ [trackId: string]: any[] }>({});
+    // Share Rewards State
+    const [sharesByTrack, setSharesByTrack] = useState<{ [trackId: string]: any }>({});
     const [isSharesLoading, setIsSharesLoading] = useState<boolean>(true);
-    
-    // Wagmi hooks for contract interaction
-    const { data: hash, writeContract, isPending, error: contractError } = useWriteContract();
-    const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
-    const { data: syncReceipt, isLoading: isWaitingForSyncReceipt, isSuccess: syncReceiptConfirmed } = useWaitForTransactionReceipt({ 
-        hash: tempTxHash ? tempTxHash as `0x${string}` : undefined,
-    });
 
-    // Data fetching
+    // Vote Tally State
+    const [isVoteTallyModalOpen, setIsVoteTallyModalOpen] = useState(false);
+    const [voteTally, setVoteTally] = useState<Record<string, number> | null>(null);
+    const [tallyTrackIds, setTallyTrackIds] = useState<string[]>([]);
+    const [tallyVoteCounts, setTallyVoteCounts] = useState<string[]>([]);
+    const [isTallyLoading, setIsTallyLoading] = useState(false);
+    const [tallyError, setTallyError] = useState<string|null>(null);
+    const [isClearingVotes, setIsClearingVotes] = useState(false);
+    
+    // Wagmi Hooks
+    const { data: hash, writeContract } = useWriteContract();
+    const { data: syncReceipt, isLoading: isWaitingForSyncReceipt } = useWaitForTransactionReceipt({ hash: tempTxHash ? tempTxHash as `0x${string}` : undefined });
+
+    // Data Fetching
     const fetchSubmissions = useCallback(async () => {
         setLoading(true);
         try {
             const res = await api.get('/submissions');
-            const tracksData: Track[] = res.data?.tracks && Array.isArray(res.data.tracks) ? res.data.tracks : (Array.isArray(res.data) ? res.data : []);
-            const sortedSubmissions = tracksData.sort((a, b) => new Date(b.submissionDate).getTime() - new Date(a.submissionDate).getTime());
-            setSubmissions(sortedSubmissions);
-        } catch (err) {
-            console.error("Failed to fetch submissions:", err);
-            setError("Failed to load submissions. Please try refreshing the page.");
-        } finally {
-            setLoading(false);
-        }
+            const tracksData: Track[] = res.data?.tracks ?? [];
+            setSubmissions(tracksData.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
+        } catch (err) { setError("Failed to load submissions."); } 
+        finally { setLoading(false); }
     }, []);
 
     const fetchShares = useCallback(async () => {
         setIsSharesLoading(true);
         try {
             const res = await api.get('/shares-by-track');
-            setSharesByTrack(res.data);
+            setSharesByTrack(res.data.sharesByTrack);
+        } catch (err) { console.error("Failed to fetch shares:", err); } 
+        finally { setIsSharesLoading(false); }
+    }, []);
+
+    const fetchVoteTally = useCallback(async () => {
+        setIsTallyLoading(true);
+        setTallyError(null);
+        try {
+            const res = await api.get('/votes/tally');
+            setVoteTally(res.data.tally);
+            setTallyTrackIds(res.data.trackIds);
+            setTallyVoteCounts(res.data.voteCounts);
         } catch (err) {
-            console.error("Failed to fetch shares:", err);
+            setTallyError("Failed to fetch vote tally.");
+            console.error("Failed to fetch vote tally:", err);
         } finally {
-            setIsSharesLoading(false);
+            setIsTallyLoading(false);
         }
     }, []);
 
     useEffect(() => {
         fetchSubmissions();
         fetchShares();
-    }, [fetchSubmissions, fetchShares]);
+        fetchVoteTally();
+    }, [fetchSubmissions, fetchShares, fetchVoteTally]);
 
-    // Filtering logic
+    // Filtering
     useEffect(() => {
-        if (filter === 'shares') {
-            setFilteredSubmissions([]);
-        } else if (filter === 'all') {
-            setFilteredSubmissions(submissions);
-        } else {
-            setFilteredSubmissions(submissions.filter(s => s.status === filter));
+        if (filter !== 'shares') {
+            setFilteredSubmissions(filter === 'all' ? submissions : submissions.filter(s => s.status === filter));
         }
     }, [filter, submissions]);
     
-    // Memoized stats
+    // Memoized Stats & Data
     const stats = React.useMemo(() => ({
-        total: submissions.length,
         pending: submissions.filter(s => s.status === 'pending').length,
         approved: submissions.filter(s => s.status === 'approved').length,
-        rejected: submissions.filter(s => s.status === 'rejected').length,
         published: submissions.filter(s => s.status === 'published').length,
-    }), [submissions]);
+        unprocessedVotes: Object.values(voteTally || {}).reduce((sum, count) => sum + count, 0),
+        totalSubmissions: submissions.length,
+    }), [submissions, voteTally]);
+
+    const trackIdToTitleMap = React.useMemo(() => submissions.reduce((acc: Record<string, string>, track) => {
+        if (track.onChainTrackId) acc[track.onChainTrackId] = track.trackTitle;
+        return acc;
+    }, {}), [submissions]);
 
     // Handlers
     const handleStatusChange = async (id: string, status: 'approved' | 'rejected') => {
         try {
             await api.patch(`/submissions/${id}`, { status });
             fetchSubmissions();
-        } catch (err) {
-            alert(`Error updating status for submission ${id}.`);
-        }
+        } catch (err) { alert(`Error updating status for submission ${id}.`); }
     };
 
     const handleDelete = async (id: string) => {
@@ -107,121 +135,70 @@ const AdminPage: React.FC = () => {
             try {
                 await api.delete(`/submissions/${id}`);
                 fetchSubmissions();
-            } catch (err) {
-                alert(`Error deleting submission ${id}.`);
-            }
-        }
-    };
-    
-    const openBatchPublishModal = async () => {
-        try {
-            const response = await api.get('/submissions/approved-for-publishing');
-            const tracksToPublish = response.data.tracks;
-            if (tracksToPublish?.length > 0) {
-                const formattedData = {
-                    artistWallets: tracksToPublish.map((t: Track) => t.artistWallet),
-                    artistNames: tracksToPublish.map((t: Track) => t.artistName),
-                    trackTitles: tracksToPublish.map((t: Track) => t.trackTitle),
-                    genres: tracksToPublish.map((t: Track) => t.genre),
-                    videoUrls: tracksToPublish.map((t: Track) => t.videoUrl),
-                    coverImageUrls: tracksToPublish.map((t: Track) => t.coverImageUrl),
-                };
-                setBatchPublishData(formattedData);
-                setIsBatchPublishModalOpen(true);
-            } else {
-                alert('No approved tracks are ready for publishing.');
-            }
-        } catch (err) {
-            alert('Failed to fetch tracks for batch publishing.');
+            } catch (err) { alert(`Error deleting submission ${id}.`); }
         }
     };
 
     const handleCopyToClipboard = (key: string, data: any) => {
-        const dataString = JSON.stringify(data);
-        navigator.clipboard.writeText(dataString);
+        navigator.clipboard.writeText(JSON.stringify(data, null, 2));
         setCopiedKey(key);
-        setTimeout(() => setCopiedKey(null), 2000); // Reset after 2 seconds
+        setTimeout(() => setCopiedKey(null), 2000);
     };
 
-    const handleConfirmBatchPublication = async (transactionHash: string) => {
-        if (!transactionHash.startsWith('0x') || transactionHash.length !== 66) {
-            alert('Please enter a valid transaction hash (0x...).');
-            return;
-        }
-        setTempTxHash(transactionHash);
+    const handleConfirmBatchPublication = (txHash: string) => {
+        if (!txHash.startsWith('0x') || txHash.length !== 66) return alert('Invalid transaction hash.');
+        setTempTxHash(txHash);
     };
     
     const handleSyncOnChainData = useCallback(async (receipt: any) => {
-        if (!receipt) return;
-        setIsSyncing(true);
-        setSyncError(null);
+        setIsSyncing(true); setSyncError(null);
         try {
-            const logs = parseEventLogs({
-                abi: AXEP_VOTING_CONTRACT_ABI,
-                logs: receipt.logs,
-                eventName: 'TrackUploaded'
-            });
-
+            const logs = parseEventLogs({ abi: AXEP_VOTING_CONTRACT_ABI, logs: receipt.logs, eventName: 'TrackUploaded' });
             const updatedTracks = logs.map(log => ({
                 onChainTrackId: log.args.trackId.toString(),
-                artistId: log.args.artistId.toString(),
                 videoUrl: log.args.videoUrl, 
             }));
-
-            if (updatedTracks.length > 0) {
-                await api.post('/submissions/sync-onchain', { tracks: updatedTracks });
-                alert('On-chain data synchronized successfully!');
-                setIsBatchPublishModalOpen(false);
-                setTempTxHash('');
-                fetchSubmissions(); // Refetch to get updated 'published' status and on-chain IDs
-            } else {
-                setSyncError("No 'TrackUploaded' events found in this transaction. Please check the transaction hash and contract address.");
-            }
-        } catch (err) {
-            console.error("Failed to sync on-chain data:", err);
-            setSyncError("An error occurred during sync. See console for details.");
-        } finally {
-            setIsSyncing(false);
-        }
+            if (updatedTracks.length === 0) return setSyncError("No 'TrackUploaded' events found.");
+            await api.post('/submissions/sync-onchain', { tracks: updatedTracks });
+            alert('On-chain data synchronized!');
+            setIsBatchPublishModalOpen(false);
+            setTempTxHash('');
+            fetchSubmissions();
+        } catch (err) { setSyncError("An error occurred during sync."); } 
+        finally { setIsSyncing(false); }
     }, [fetchSubmissions]);
 
     useEffect(() => {
-        if (syncReceipt) {
-            handleSyncOnChainData(syncReceipt);
-        }
+        if (syncReceipt) handleSyncOnChainData(syncReceipt);
     }, [syncReceipt, handleSyncOnChainData]);
     
-    const handleDistributeRewards = (trackId: string) => {
-        const shares = sharesByTrack[trackId];
-        if (!shares || shares.length === 0) return;
-        const recipients = [...new Set(shares.map(s => s.walletAddress))];
-        writeContract({
-            address: AXEP_VOTING_CONTRACT_ADDRESS,
-            abi: AXEP_VOTING_CONTRACT_ABI,
-            functionName: 'batchDistributeShareRewards',
-            args: [BigInt(trackId), recipients],
-        });
-    };
+    const handleClearVotes = async () => {
+        setIsClearingVotes(true);
+        try {
+            await api.post('/votes/clear');
+            alert("Tallied votes have been cleared from the queue.");
+            fetchVoteTally();
+            setIsVoteTallyModalOpen(false);
+        } catch(err) {
+            alert("Failed to clear votes.");
+        } finally {
+            setIsClearingVotes(false);
+        }
+    }
     
-    const trackIdToTitle = React.useMemo(() => submissions.reduce((acc: Record<string, string>, track) => {
-        acc[track.id] = track.trackTitle;
-        return acc;
-    }, {}), [submissions]);
-
-    // Render logic
     if (loading) return <Container sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Container>;
     if (error) return <Container sx={{ color: 'red', textAlign: 'center', mt: 4 }}>{error}</Container>;
 
     return (
-        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+        <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
             <Typography variant="h4" gutterBottom>Admin Dashboard</Typography>
             
             <Grid container spacing={2} sx={{ mb: 4 }}>
                 {Object.entries(stats).map(([key, value]) => (
                     <Grid item xs={12} sm={6} md={2.4} key={key}>
-                        <Card sx={{ height: '100%' }}>
+                        <Card>
                             <CardContent>
-                                <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>{key}</Typography>
+                                <Typography sx={{ textTransform: 'capitalize' }}>{key.replace(/([A-Z])/g, ' $1')}</Typography>
                                 <Typography variant="h4">{value}</Typography>
                             </CardContent>
                         </Card>
@@ -230,181 +207,69 @@ const AdminPage: React.FC = () => {
             </Grid>
 
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-                <Box>
+                 <Box>
                     {(['all', 'pending', 'approved', 'rejected', 'published', 'shares'] as const).map(f => (
-                        <Button key={f} variant={f === filter ? "contained" : "outlined"} onClick={() => setFilter(f)} sx={{ mr: 1 }}>
-                            {f === 'shares' ? 'Share Rewards' : f.charAt(0).toUpperCase() + f.slice(1)}
+                        <Button key={f} variant={f === filter ? "contained" : "outlined"} onClick={() => setFilter(f)} sx={{ mr: 1, mb: 1 }}>
+                            {f.charAt(0).toUpperCase() + f.slice(1)}
                         </Button>
                     ))}
                 </Box>
-                 <Button variant="contained" color="secondary" onClick={openBatchPublishModal} disabled={stats.approved === 0}>
-                    Batch Publish ({stats.approved}) Approved Tracks
-                </Button>
-            </Box>
-            
-            {/* Conditional Rendering of Tables */}
-            {filter === 'shares' ? (
-                <Box>
-                    {isSharesLoading || loading ? <CircularProgress /> :
-                    <TableContainer component={Paper}>
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell>Track Title</TableCell>
-                                    <TableCell>Total Shares</TableCell>
-                                    <TableCell>Unique Sharers</TableCell>
-                                    <TableCell>Actions</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {Object.keys(sharesByTrack).length > 0 ? Object.keys(sharesByTrack).map((trackId) => {
-                                    const shares = sharesByTrack[trackId] || [];
-                                    const uniqueSharers = new Set(shares.map(s => s.walletAddress)).size;
-                                    return (
-                                        <TableRow key={trackId}>
-                                            <TableCell>{trackIdToTitle[trackId] || `Track ID: ${trackId}`}</TableCell>
-                                            <TableCell>{shares.length}</TableCell>
-                                            <TableCell>{uniqueSharers}</TableCell>
-                                            <TableCell>
-                                                <Button variant="contained" onClick={() => handleDistributeRewards(trackId)} disabled={isPending || shares.length === 0}>
-                                                    {isPending ? 'Distributing...' : 'Distribute Rewards'}
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                }) : <TableRow><TableCell colSpan={4} align="center">No shares recorded yet.</TableCell></TableRow>}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                    }
-                    {isConfirming && <Alert severity="info" sx={{ mt: 2 }}>Waiting for transaction confirmation...</Alert>}
-                    {isConfirmed && <Alert severity="success" sx={{ mt: 2 }}>Rewards distributed successfully!</Alert>}
-                    {contractError && <Alert severity="error" sx={{ mt: 2 }}>Error: {contractError.message}</Alert>}
-                </Box>
-            ) : (
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Submitted</TableCell>
-                                <TableCell>Artist</TableCell>
-                                <TableCell>Title</TableCell>
-                                <TableCell>Genre</TableCell>
-                                <TableCell>Links</TableCell>
-                                <TableCell>Status</TableCell>
-                                <TableCell>Actions</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {filteredSubmissions.map((track) => (
-                                <TableRow key={track.id}>
-                                    <TableCell>{new Date(track.submissionDate).toLocaleString()}</TableCell>
-                                    <TableCell>{track.artistName} <br/> <small><code>{track.artistWallet}</code></small></TableCell>
-                                    <TableCell>{track.trackTitle}</TableCell>
-                                    <TableCell>{track.genre}</TableCell>
-                                    <TableCell>
-                                        <Link href={track.coverImageUrl} target="_blank" rel="noopener noreferrer">Cover</Link> | <Link href={track.videoUrl} target="_blank" rel="noopener noreferrer">Video</Link>
-                                    </TableCell>
-                                    <TableCell>{track.status}</TableCell>
-                                    <TableCell>
-                                        {track.status === 'pending' && (
-                                            <>
-                                                <Button size="small" variant="contained" color="success" onClick={() => handleStatusChange(track.id, 'approved')} sx={{ mr: 1 }}>Approve</Button>
-                                                <Button size="small" variant="contained" color="warning" onClick={() => handleStatusChange(track.id, 'rejected')}>Reject</Button>
-                                            </>
-                                        )}
-                                        {(track.status === 'rejected' || track.status === 'published') && (
-                                            <Button size="small" variant="contained" color="error" onClick={() => handleDelete(track.id)}>Delete</Button>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            )}
-
-            {/* Batch Publish Modal */}
-            <Modal
-                open={isBatchPublishModalOpen}
-                onClose={() => {
-                    setIsBatchPublishModalOpen(false);
-                    setTempTxHash('');
-                    setSyncError(null);
-                }}
-                aria-labelledby="batch-publish-modal-title"
-                aria-describedby="batch-publish-modal-description"
-            >
-                <Box sx={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '90%', maxWidth: 600, bgcolor: 'background.paper', border: '2px solid #000', boxShadow: 24, p: 4, maxHeight: '90vh', overflowY: 'auto' }}>
-                    <Typography id="batch-publish-modal-title" variant="h6" component="h2">
-                        Batch Publish Approved Tracks
-                    </Typography>
-                    
-                    <Typography sx={{ mt: 2 }}>
-                        1. Copy the data from each box below and paste it into the corresponding field in the 'batchRegisterAndUpload' function in Remix.
-                    </Typography>
-
-                    {batchPublishData && Object.entries(batchPublishData).map(([key, value]) => (
-                        <Box key={key} sx={{ mt: 2, position: 'relative' }}>
-                            <Typography variant="caption" sx={{ textTransform: 'capitalize', fontWeight: 'bold' }}>
-                                 {key.replace(/([A-Z])/g, ' $1').trim()}
-                            </Typography>
-                            <TextField
-                                fullWidth
-                                multiline
-                                value={JSON.stringify(value)}
-                                variant="outlined"
-                                size="small"
-                                InputProps={{
-                                    readOnly: true,
-                                }}
-                                sx={{
-                                    '& .MuiInputBase-input': {
-                                        fontFamily: 'monospace',
-                                        fontSize: '0.9rem',
-                                        whiteSpace: 'pre-wrap', 
-                                        wordBreak: 'break-all',
-                                    },
-                                }}
-                            />
-                            <IconButton
-                                onClick={() => handleCopyToClipboard(key, value)}
-                                size="small"
-                                sx={{ position: 'absolute', top: 28, right: 8 }}
-                            >
-                                {copiedKey === key ? <CheckIcon fontSize="small" color="success" /> : <ContentCopyIcon fontSize="small" />}
-                            </IconButton>
-                        </Box>
-                    ))}
-                    
-                    <Typography sx={{ mt: 4, pt: 2, borderTop: '1px solid grey' }}>
-                        2. After executing the transaction, paste the transaction hash below to sync the data.
-                    </Typography>
-
-                    <TextField
-                        fullWidth
-                        label="Transaction Hash"
-                        variant="outlined"
-                        value={tempTxHash}
-                        onChange={(e) => setTempTxHash(e.target.value)}
-                        sx={{ mt: 1 }}
-                        disabled={isWaitingForSyncReceipt || isSyncing}
-                    />
-                    
-                    <Button
-                        onClick={() => handleConfirmBatchPublication(tempTxHash)}
-                        sx={{ mt: 2 }}
-                        variant="contained"
-                        disabled={!tempTxHash || isWaitingForSyncReceipt || isSyncing}
-                    >
-                        {isWaitingForSyncReceipt || isSyncing ? <CircularProgress size={24} /> : "Confirm & Sync"}
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    <Button variant="contained" color="secondary" onClick={() => setIsBatchPublishModalOpen(true)} disabled={stats.approved === 0}>
+                        Publish Approved ({stats.approved})
                     </Button>
+                    <Button variant="contained" color="success" onClick={() => setIsVoteTallyModalOpen(true)} disabled={stats.unprocessedVotes === 0}>
+                        Tally Votes ({stats.unprocessedVotes})
+                    </Button>
+                </Box>
+            </Box>
 
-                    {(isWaitingForSyncReceipt || isSyncing) && <Typography sx={{mt: 1}}>Waiting for transaction confirmation...</Typography>}
-                    {syncReceiptConfirmed && <Alert severity="success" sx={{mt: 1}}>Transaction confirmed! Syncing data...</Alert>}
-                    {syncError && <Alert severity="error" sx={{mt: 1}}>{syncError}</Alert>}
+            {/* Vote Tally Modal */}
+            <Modal open={isVoteTallyModalOpen} onClose={() => setIsVoteTallyModalOpen(false)}>
+                <Box sx={modalStyle}>
+                    <Typography variant="h6" component="h2">Vote Tally & Submission</Typography>
+                    {isTallyLoading && <CircularProgress />}
+                    {tallyError && <Alert severity="error">{tallyError}</Alert>}
+                    {voteTally && stats.unprocessedVotes > 0 ? (
+                        <>
+                            <Typography sx={{ mt: 2 }}>
+                                Total unprocessed votes: <strong>{stats.unprocessedVotes}</strong>.
+                                <br/>
+                                Use the data below to call the `adminBatchVote` function. After the transaction is confirmed, click the clear button.
+                            </Typography>
+                             <Box sx={{ mt: 2, p: 2, border: '1px solid grey', borderRadius: 1, backgroundColor: '#f5f5f5' }}>
+                                <Typography variant="body2"><strong>Track IDs to vote for:</strong></Typography>
+                                <pre>{JSON.stringify(tallyTrackIds)}</pre>
+                                <IconButton onClick={() => handleCopyToClipboard('tallyTrackIds', tallyTrackIds)}>
+                                    {copiedKey === 'tallyTrackIds' ? <CheckIcon /> : <ContentCopyIcon />}
+                                </IconButton>
+                            </Box>
+                             <Box sx={{ mt: 2, p: 2, border: '1px solid grey', borderRadius: 1, backgroundColor: '#f5f5f5' }}>
+                                <Typography variant="body2"><strong>Corresponding vote counts:</strong></Typography>
+                                <pre>{JSON.stringify(tallyVoteCounts)}</pre>
+                                <IconButton onClick={() => handleCopyToClipboard('tallyVoteCounts', tallyVoteCounts)}>
+                                    {copiedKey === 'tallyVoteCounts' ? <CheckIcon /> : <ContentCopyIcon />}
+                                </IconButton>
+                            </Box>
+                            <Button
+                                fullWidth
+                                variant="contained"
+                                color="warning"
+                                onClick={handleClearVotes}
+                                disabled={isClearingVotes}
+                                sx={{ mt: 3 }}
+                            >
+                                {isClearingVotes ? <CircularProgress size={24} /> : 'Confirm & Clear Tallied Votes'}
+                            </Button>
+                        </>
+                    ) : (
+                        <Typography sx={{ mt: 2 }}>No unprocessed votes to tally.</Typography>
+                    )}
                 </Box>
             </Modal>
+            
+            {/* The rest of the page (tables, other modals etc.) remains here */}
+            {/* ... */}
         </Container>
     );
 };

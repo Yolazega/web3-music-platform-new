@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract AxepVoting {
+contract AxepVoting is Ownable {
     // --- Structs ---
     struct Artist {
         uint256 id;
@@ -18,14 +18,12 @@ contract AxepVoting {
         uint256 artistId;
         string title;
         string genre;
-        string videoUrl; // Using a direct URL for simplicity
-        string coverImageUrl; // Using a direct URL for simplicity
+        string videoUrl;
+        string coverImageUrl;
         uint256 uploadTimestamp;
-        uint256 votes;
     }
 
     // --- State Variables ---
-    address public owner;
     IERC20 public axpToken;
 
     string[] public officialGenres;
@@ -36,15 +34,15 @@ contract AxepVoting {
 
     mapping(uint256 => Track) public tracks;
     uint256 private _nextTrackId;
+    
+    mapping(uint256 => uint256) public trackVotes;
 
-    // Track IDs for each genre
     mapping(string => uint256[]) private _trackIdsByGenre;
     uint256[] public allTrackIds;
 
-    // Share reward variables
     uint256 public shareRewardAmount;
-    mapping(uint256 => mapping(address => string)) public proofOfShares; // trackId => user => url
-    mapping(uint256 => mapping(address => bool)) public rewardedShares; // trackId => user => bool
+    mapping(uint256 => mapping(address => string)) public proofOfShares;
+    mapping(uint256 => mapping(address => bool)) public rewardedShares;
 
     // --- Events ---
     event ArtistRegistered(uint256 indexed artistId, string name, address indexed artistWallet);
@@ -55,17 +53,16 @@ contract AxepVoting {
         string genre,
         string videoUrl
     );
-    event Voted(uint256 indexed trackId, address indexed voter);
+    event Voted(uint256 indexed trackId, address indexed voter, uint256 totalVotes);
     event ShareRecorded(uint256 indexed trackId, address indexed sharer, string shareUrl);
     event ShareRewardsDistributed(uint256 indexed trackId, address indexed distributor);
+    event VotesTallied(uint256[] trackIds, uint256[] voteCounts);
 
     // --- Constructor ---
-    constructor(address _tokenAddress) {
-        owner = msg.sender;
+    constructor(address _tokenAddress) Ownable(msg.sender) {
         axpToken = IERC20(_tokenAddress);
-        shareRewardAmount = 500 * (10**18); // Default to 500 tokens, assuming 18 decimals
+        shareRewardAmount = 500 * (10**18);
 
-        // Hardcoding genres for simplicity, removing admin functions
         officialGenres.push("Pop");
         officialGenres.push("Soul");
         officialGenres.push("Rock");
@@ -78,48 +75,6 @@ contract AxepVoting {
 
     // --- External Functions ---
 
-    function registerArtistAndUploadFirstTrack(
-        string calldata artistName,
-        string calldata trackTitle,
-        string calldata genre,
-        string calldata videoUrl,
-        string calldata coverImageUrl
-    ) external {
-        // Ensure the sender is not already registered as an artist
-        require(artistIdByWallet[msg.sender] == 0, "Artist already registered.");
-        // Ensure the genre is valid
-        require(_isValidGenre(genre), "Invalid genre.");
-
-        // Register the new artist
-        uint256 artistId = _nextArtistId++;
-        artists[artistId] = Artist({
-            id: artistId,
-            name: artistName,
-            artistWallet: payable(msg.sender),
-            isRegistered: true
-        });
-        artistIdByWallet[msg.sender] = artistId;
-        emit ArtistRegistered(artistId, artistName, msg.sender);
-
-        // Upload their first track
-        uint256 trackId = _nextTrackId++;
-        tracks[trackId] = Track({
-            id: trackId,
-            artistId: artistId,
-            title: trackTitle,
-            genre: genre,
-            videoUrl: videoUrl,
-            coverImageUrl: coverImageUrl,
-            uploadTimestamp: block.timestamp,
-            votes: 0
-        });
-
-        _trackIdsByGenre[genre].push(trackId);
-        allTrackIds.push(trackId);
-
-        emit TrackUploaded(trackId, artistId, trackTitle, genre, videoUrl);
-    }
-
     function batchRegisterAndUpload(
         address[] calldata artistWallets,
         string[] calldata artistNames,
@@ -127,8 +82,7 @@ contract AxepVoting {
         string[] calldata genres,
         string[] calldata videoUrls,
         string[] calldata coverImageUrls
-    ) external {
-        require(msg.sender == owner, "Only owner can call this function.");
+    ) external onlyOwner {
         require(artistWallets.length == artistNames.length, "Array length mismatch");
         require(artistWallets.length == trackTitles.length, "Array length mismatch");
         require(artistWallets.length == genres.length, "Array length mismatch");
@@ -147,13 +101,18 @@ contract AxepVoting {
         }
     }
 
-    function voteForTrack(uint256 trackId) external {
-        // Basic vote logic (can be expanded later with week limits, etc.)
-        require(tracks[trackId].id != 0, "Track does not exist.");
-        tracks[trackId].votes++;
-        emit Voted(trackId, msg.sender);
+    function adminBatchVote(uint256[] calldata _trackIds, uint256[] calldata _voteCounts) external onlyOwner {
+        require(_trackIds.length == _voteCounts.length, "Input arrays must have the same length.");
+        for (uint256 i = 0; i < _trackIds.length; i++) {
+            uint256 trackId = _trackIds[i];
+            uint256 newVotes = _voteCounts[i];
+            if (tracks[trackId].id != 0 && newVotes > 0) {
+                trackVotes[trackId] += newVotes;
+            }
+        }
+        emit VotesTallied(_trackIds, _voteCounts);
     }
-
+    
     function recordShare(uint256 _trackId, string calldata _shareUrl) external {
         require(tracks[_trackId].id != 0, "Track does not exist.");
         require(bytes(_shareUrl).length > 0, "Share URL cannot be empty.");
@@ -163,6 +122,10 @@ contract AxepVoting {
 
     // --- View Functions ---
 
+    function getVoteCount(uint256 trackId) public view returns (uint256) {
+        return trackVotes[trackId];
+    }
+    
     function getArtist(uint256 artistId) external view returns (Artist memory) {
         return artists[artistId];
     }
@@ -193,8 +156,10 @@ contract AxepVoting {
         string calldata videoUrl,
         string calldata coverImageUrl
     ) internal {
-        if (artistIdByWallet[artistWallet] == 0 && _isValidGenre(genre)) {
-            uint256 artistId = _nextArtistId++;
+        uint256 artistId;
+        if (artistIdByWallet[artistWallet] == 0) {
+            require(_isValidGenre(genre), "Invalid genre for new artist's first track.");
+            artistId = _nextArtistId++;
             artists[artistId] = Artist({
                 id: artistId,
                 name: artistName,
@@ -203,24 +168,26 @@ contract AxepVoting {
             });
             artistIdByWallet[artistWallet] = artistId;
             emit ArtistRegistered(artistId, artistName, artistWallet);
-
-            uint256 trackId = _nextTrackId++;
-            tracks[trackId] = Track({
-                id: trackId,
-                artistId: artistId,
-                title: trackTitle,
-                genre: genre,
-                videoUrl: videoUrl,
-                coverImageUrl: coverImageUrl,
-                uploadTimestamp: block.timestamp,
-                votes: 0
-            });
-
-            _trackIdsByGenre[genre].push(trackId);
-            allTrackIds.push(trackId);
-
-            emit TrackUploaded(trackId, artistId, trackTitle, genre, videoUrl);
+        } else {
+            artistId = artistIdByWallet[artistWallet];
         }
+
+        uint256 trackId = _nextTrackId++;
+        tracks[trackId] = Track({
+            id: trackId,
+            artistId: artistId,
+            title: trackTitle,
+            genre: genre,
+            videoUrl: videoUrl,
+            coverImageUrl: coverImageUrl,
+            uploadTimestamp: block.timestamp
+        });
+        trackVotes[trackId] = 0;
+
+        _trackIdsByGenre[genre].push(trackId);
+        allTrackIds.push(trackId);
+
+        emit TrackUploaded(trackId, artistId, trackTitle, genre, videoUrl);
     }
 
     function _isValidGenre(string calldata genreName) internal view returns (bool) {
@@ -233,26 +200,21 @@ contract AxepVoting {
     }
 
     // --- Owner Functions ---
-    function withdraw() external {
-        require(msg.sender == owner, "Only owner can withdraw.");
-        payable(owner).transfer(address(this).balance);
+    function withdraw() external onlyOwner {
+        payable(owner()).transfer(address(this).balance);
     }
 
-    function setShareRewardAmount(uint256 _newAmount) external {
-        require(msg.sender == owner, "Only owner can call this function.");
+    function setShareRewardAmount(uint256 _newAmount) external onlyOwner {
         shareRewardAmount = _newAmount;
     }
 
-    function batchDistributeShareRewards(uint256 _trackId, address[] calldata _recipients) external {
-        require(msg.sender == owner, "Only owner can call this function.");
-
+    function batchDistributeShareRewards(uint256 _trackId, address[] calldata _recipients) external onlyOwner {
         uint256 rewardAmount = shareRewardAmount;
         require(axpToken.balanceOf(address(this)) >= rewardAmount * _recipients.length, "Insufficient token balance in contract.");
 
-        for(uint i = 0; i < _recipients.length; i++) {
+        for (uint i = 0; i < _recipients.length; i++) {
             address recipient = _recipients[i];
-            // Check for proof of share and that they haven't been rewarded yet
-            if(bytes(proofOfShares[_trackId][recipient]).length > 0 && !rewardedShares[_trackId][recipient]) {
+            if (bytes(proofOfShares[_trackId][recipient]).length > 0 && !rewardedShares[_trackId][recipient]) {
                 rewardedShares[_trackId][recipient] = true;
                 axpToken.transfer(recipient, rewardAmount);
             }

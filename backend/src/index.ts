@@ -35,15 +35,24 @@ interface Track {
 }
 
 interface Share {
-    id: string; // Added an ID for the share itself
+    id: string;
     walletAddress: string;
     trackId: string; // This is the DB ID of the track
     sharedAt: string;
 }
 
+interface Vote {
+    id: string;
+    onChainTrackId: string;
+    voterIdentifier: string; // Using IP address for simple uniqueness
+    votedAt: string;
+    status: 'tallied' | 'processed';
+}
+
 interface Database {
     tracks: Track[];
     shares: Share[];
+    votes: Vote[];
 }
 
 // Function to ensure directory and file exist
@@ -53,7 +62,7 @@ const initializeDatabase = async () => {
         await fs.access(dbPath);
     } catch (error) {
         console.log('Database file not found. Creating a new one.');
-        await fs.writeFile(dbPath, JSON.stringify({ tracks: [], shares: [] }), 'utf-8');
+        await fs.writeFile(dbPath, JSON.stringify({ tracks: [], shares: [], votes: [] }), 'utf-8');
     }
 };
 
@@ -79,6 +88,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.set('trust proxy', true); // Needed to get user's IP address behind a proxy like Render
 
 // --- Test Route ---
 app.get('/', (req: Request, res: Response) => {
@@ -339,33 +349,130 @@ app.get('/shares-by-track', async (req: Request, res: Response) => {
 
 // Submit a proof of share
 app.post('/shares', async (req: Request, res: Response) => {
-    try {
-        const { walletAddress, trackId, shareUrl } = req.body; // trackId here is the DB ID
-        if (!walletAddress || !trackId || !shareUrl) {
-            return res.status(400).json({ error: 'walletAddress, trackId, and shareUrl are required.' });
-        }
-        
-        const newShare: Share = {
-            id: uuidv4(),
-            walletAddress,
-            trackId,
-            sharedAt: new Date().toISOString()
-        };
+    const { walletAddress, trackId } = req.body;
+    if (!walletAddress || !trackId) {
+        return res.status(400).json({ error: 'walletAddress and trackId are required.' });
+    }
+    
+    const newShare: Share = {
+        id: uuidv4(),
+        walletAddress,
+        trackId,
+        sharedAt: new Date().toISOString()
+    };
 
+    const dbData = await fs.readFile(dbPath, 'utf-8');
+    const db: Database = JSON.parse(dbData);
+    
+    db.shares.push(newShare);
+    
+    await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+
+    res.status(201).json({ message: 'Share recorded successfully!', share: newShare });
+});
+
+// --- Vote Endpoints ---
+
+// Record a new vote (gasless)
+app.post('/votes', async (req: Request, res: Response) => {
+    const { onChainTrackId } = req.body;
+    const voterIdentifier = req.ip; // Use IP address to identify voter
+
+    if (!onChainTrackId) {
+        return res.status(400).json({ error: 'Track ID is required.' });
+    }
+    
+    if (!voterIdentifier) {
+        return res.status(400).json({ error: 'Could not identify voter. Please try again.' });
+    }
+
+    try {
         const dbData = await fs.readFile(dbPath, 'utf-8');
         const db: Database = JSON.parse(dbData);
+
+        // Check if track exists and is published
+        const trackExists = db.tracks.some(t => t.onChainTrackId === onChainTrackId && t.status === 'published');
+        if (!trackExists) {
+            return res.status(404).json({ error: 'This track is not available for voting.' });
+        }
         
-        db.shares.push(newShare);
-        
+        // Anti-abuse: Check if this IP has voted for this track in the last 24 hours
+        const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+        const recentVote = db.votes.find(v => 
+            v.onChainTrackId === onChainTrackId && 
+            v.voterIdentifier === voterIdentifier &&
+            new Date(v.votedAt).getTime() > twentyFourHoursAgo
+        );
+
+        if (recentVote) {
+            return res.status(429).json({ error: 'You have already voted for this track recently.' });
+        }
+
+        const newVote: Vote = {
+            id: uuidv4(),
+            onChainTrackId,
+            voterIdentifier,
+            votedAt: new Date().toISOString(),
+            status: 'tallied'
+        };
+
+        db.votes.push(newVote);
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
-        res.status(201).json({ message: 'Share recorded successfully!', share: newShare });
+        res.status(201).json({ message: 'Your vote has been recorded successfully!' });
+
     } catch (error) {
-        console.error('Error recording share:', error);
-        res.status(500).json({ error: 'Failed to record share.' });
+        console.error('Error recording vote:', error);
+        res.status(500).json({ error: 'Failed to record vote.' });
     }
 });
 
+// Get the tally of unprocessed votes for the admin page
+app.get('/votes/tally', async (req: Request, res: Response) => {
+    try {
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+
+        const unprocessedVotes = db.votes.filter(v => v.status === 'tallied');
+
+        const tally = unprocessedVotes.reduce((acc, vote) => {
+            acc[vote.onChainTrackId] = (acc[vote.onChainTrackId] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+
+        const trackIds = Object.keys(tally);
+        const voteCounts = Object.values(tally);
+
+        res.status(200).json({ tally, trackIds, voteCounts });
+    } catch (error) {
+        console.error('Error getting vote tally:', error);
+        res.status(500).json({ error: 'Failed to get vote tally.' });
+    }
+});
+
+// Mark all tallied votes as processed after admin submits them on-chain
+app.post('/votes/clear', async (req: Request, res: Response) => {
+    try {
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+        
+        let processedCount = 0;
+        db.votes.forEach(vote => {
+            if (vote.status === 'tallied') {
+                vote.status = 'processed';
+                processedCount++;
+            }
+        });
+
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+
+        res.status(200).json({ message: `Successfully cleared ${processedCount} processed votes.` });
+
+    } catch (error) {
+        console.error('Error clearing votes:', error);
+        res.status(500).json({ error: 'Failed to clear votes.' });
+    }
+});
 
 // --- Server Initialization ---
 const startServer = async () => {
