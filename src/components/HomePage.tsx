@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useAccount, useBalance } from 'wagmi';
-import { AXP_TOKEN_CONTRACT_ADDRESS, AMOY_CHAIN_ID } from 'config';
+import { useAccount, useBalance, useReadContracts } from 'wagmi';
+import { AXP_TOKEN_CONTRACT_ADDRESS, AMOY_CHAIN_ID, AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from 'config';
+import WinnerCard from './WinnerCard';
+import { Box, Typography, CircularProgress, Alert } from '@mui/material';
 
 const HomePage: React.FC = () => {
   const { address, chain } = useAccount();
@@ -10,6 +12,49 @@ const HomePage: React.FC = () => {
     address,
     token: AXP_TOKEN_CONTRACT_ADDRESS as `0x${string}`,
   });
+
+  const axepVotingContract = {
+    address: AXEP_VOTING_CONTRACT_ADDRESS as `0x${string}`,
+    abi: AXEP_VOTING_CONTRACT_ABI,
+  };
+
+  const { data: trackIds, isLoading: isLoadingTrackIds, error: errorTrackIds } = useReadContracts({
+    contracts: [{ ...axepVotingContract, functionName: 'getAllTrackIds' }],
+    // query: { enabled: !!address },
+  });
+  
+  const allTrackIds = trackIds?.[0]?.result as bigint[] | undefined;
+
+  const { data: tracksData, isLoading: isLoadingTracks, error: errorTracks } = useReadContracts({
+      contracts: allTrackIds?.map(id => ({
+          ...axepVotingContract,
+          functionName: 'getTrack',
+          args: [id],
+      })) || [],
+      query: { enabled: !!allTrackIds && allTrackIds.length > 0 },
+  });
+
+  const tracks = useMemo(() => tracksData?.map(t => t.result) || [], [tracksData]);
+
+  const winner = useMemo(() => {
+    if (!tracks || tracks.length === 0) return null;
+    // @ts-ignore
+    return tracks.reduce((prev, current) => (prev.votes > current.votes) ? prev : current);
+  }, [tracks]);
+
+
+  const { data: artistData, isLoading: isLoadingArtist, error: errorArtist } = useReadContracts({
+      contracts: winner ? [{
+          ...axepVotingContract,
+          functionName: 'getArtist',
+          // @ts-ignore
+          args: [winner.artistId],
+      }] : [],
+      query: { enabled: !!winner },
+  });
+  
+  // @ts-ignore
+  const winningArtist = artistData?.[0]?.result;
 
   const isConnectedOnAmoy = address && chain && chain.id.toString() === parseInt(AMOY_CHAIN_ID, 16).toString();
   const genres = ["Pop", "Soul", "Rock", "Country", "RAP", "Afro / Dancehall", "Electronic", "Instrumental / Other"];
@@ -23,25 +68,28 @@ const HomePage: React.FC = () => {
     color: '#333',
     padding: '20px',
     minHeight: '100vh',
-    backgroundColor: '#fff',
+    backgroundColor: '#f4f6f8',
   };
 
   const genreBarStyle: React.CSSProperties = {
     display: 'flex',
     justifyContent: 'space-around',
     width: '100%',
-    maxWidth: '800px',
+    maxWidth: '900px',
     margin: '20px 0 40px 0',
     padding: '10px 0',
-    borderBottom: '1px solid #eee',
+    borderBottom: '1px solid #ddd',
+    flexWrap: 'wrap',
+    gap: '10px'
   };
 
   const genreItemStyle: React.CSSProperties = {
-    padding: '10px 20px',
+    padding: '8px 16px',
     fontWeight: 'bold',
     cursor: 'pointer',
     borderRadius: '20px',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#e9ecef',
+    transition: 'background-color 0.3s',
   };
 
   const heroSectionStyle: React.CSSProperties = {
@@ -53,6 +101,7 @@ const HomePage: React.FC = () => {
     fontWeight: 'bold',
     letterSpacing: '0.1em',
     margin: '0',
+    color: '#1a237e'
   };
 
   const descriptionStyle: React.CSSProperties = {
@@ -72,20 +121,9 @@ const HomePage: React.FC = () => {
   const winnerSectionStyle: React.CSSProperties = {
     marginTop: '50px',
     width: '100%',
-    maxWidth: '800px',
-  };
-
-  const winnerTitleStyle: React.CSSProperties = {
-    fontSize: '1.5em',
-    color: '#444',
-  };
-
-  const winnerPlaceholderStyle: React.CSSProperties = {
-    width: '100%',
-    height: '150px',
-    backgroundColor: '#333',
-    borderRadius: '10px',
-    margin: '20px 0',
+    display: 'flex',
+    justifyContent: 'center',
+    padding: '20px'
   };
   
   const navStyle: React.CSSProperties = {
@@ -103,6 +141,20 @@ const HomePage: React.FC = () => {
       justifyContent: 'center',
       gap: '20px'
   };
+
+  const renderWinnerSection = () => {
+    if (isLoadingTrackIds || isLoadingTracks || isLoadingArtist) {
+      return <CircularProgress />;
+    }
+    if (errorTrackIds || errorTracks || errorArtist) {
+      return <Alert severity="error">Error loading winner data. Please try again later.</Alert>;
+    }
+    if (winner && winningArtist) {
+      // @ts-ignore
+      return <WinnerCard track={winner} artist={winningArtist} />;
+    }
+    return <Typography>No winner declared yet. Be the first to vote!</Typography>;
+  }
 
   return (
     <div style={containerStyle}>
@@ -128,8 +180,7 @@ const HomePage: React.FC = () => {
       </div>
 
       <div style={winnerSectionStyle}>
-        <h2 style={winnerTitleStyle}>Current Main Winner</h2>
-        <div style={winnerPlaceholderStyle}></div>
+          {renderWinnerSection()}
       </div>
 
       {address && axpBalance && (

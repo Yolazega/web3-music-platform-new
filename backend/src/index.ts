@@ -31,11 +31,13 @@ interface Track {
     submittedAt: string;
     reportCount: number;
     transactionHash?: string;
+    onChainTrackId?: string; // To store the ID from the smart contract
 }
 
 interface Share {
+    id: string; // Added an ID for the share itself
     walletAddress: string;
-    trackId: string;
+    trackId: string; // This is the DB ID of the track
     sharedAt: string;
 }
 
@@ -76,7 +78,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); 
+app.use(express.urlencoded({ extended: true }));
 
 // --- Test Route ---
 app.get('/', (req: Request, res: Response) => {
@@ -206,6 +208,46 @@ app.patch('/submissions/:id', async (req: Request, res: Response) => {
     }
 });
 
+// Sync on-chain data after batch publishing
+app.post('/submissions/sync-onchain', async (req: Request, res: Response) => {
+    const { tracks: syncedTracks } = req.body;
+
+    if (!Array.isArray(syncedTracks) || syncedTracks.length === 0) {
+        return res.status(400).json({ error: 'Invalid or empty tracks array provided.' });
+    }
+
+    try {
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+
+        let updatedCount = 0;
+
+        for (const syncedTrack of syncedTracks) {
+            const { videoUrl, onChainTrackId } = syncedTrack;
+            if (!videoUrl || !onChainTrackId) continue;
+
+            // Find the track that was approved and matches the videoUrl
+            const trackIndex = db.tracks.findIndex(t => t.videoUrl === videoUrl && t.status === 'approved');
+
+            if (trackIndex !== -1) {
+                db.tracks[trackIndex].status = 'published';
+                db.tracks[trackIndex].onChainTrackId = onChainTrackId.toString(); 
+                updatedCount++;
+            }
+        }
+
+        if (updatedCount > 0) {
+            await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+            res.status(200).json({ message: `Successfully synced ${updatedCount} tracks.` });
+        } else {
+            res.status(404).json({ message: 'No matching approved tracks found to sync.' });
+        }
+    } catch (error) {
+        console.error('Error syncing on-chain data:', error);
+        res.status(500).json({ error: 'Failed to sync on-chain data.' });
+    }
+});
+
 // New endpoint to get all approved tracks formatted for manual publishing
 app.get('/submissions/approved-for-publishing', async (req: Request, res: Response) => {
     try {
@@ -236,36 +278,6 @@ app.get('/submissions/approved-for-publishing', async (req: Request, res: Respon
     }
 });
 
-// Confirm publication and store transaction hash
-app.post('/submissions/:id/confirm-publication', async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { transactionHash } = req.body;
-
-    if (!transactionHash) {
-        return res.status(400).json({ error: 'Transaction hash is required.' });
-    }
-
-    try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        const submissionIndex = db.tracks.findIndex(s => s.id === id);
-
-        if (submissionIndex === -1) {
-            return res.status(404).json({ error: 'Track not found.' });
-        }
-
-        db.tracks[submissionIndex].status = 'published';
-        db.tracks[submissionIndex].transactionHash = transactionHash;
-        
-        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-        
-        res.status(200).json(db.tracks[submissionIndex]);
-    } catch (error) {
-        console.error('Error confirming publication:', error);
-        res.status(500).json({ error: 'Failed to confirm publication.' });
-    }
-});
-
 // Delete a submission
 app.delete('/submissions/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
@@ -273,156 +285,87 @@ app.delete('/submissions/:id', async (req: Request, res: Response) => {
     try {
         const dbData = await fs.readFile(dbPath, 'utf-8');
         const db: Database = JSON.parse(dbData);
-        const initialLength = db.tracks.length;
-        db.tracks = db.tracks.filter(s => s.id !== id);
-        
-        if (db.tracks.length === initialLength) {
+        const newSubmissions = db.tracks.filter(s => s.id !== id);
+
+        if (newSubmissions.length === db.tracks.length) {
             return res.status(404).json({ error: 'Track not found.' });
         }
 
+        db.tracks = newSubmissions;
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-        res.status(200).json({ message: 'Submission deleted successfully.' });
+        
+        res.status(200).json({ message: 'Track deleted successfully.' });
     } catch (error) {
         console.error('Error deleting submission:', error);
         res.status(500).json({ error: 'Failed to delete submission.' });
     }
 });
 
+// --- Share Endpoints ---
 
-// Report a submission
-app.post('/submissions/:id/report', async (req: Request, res: Response) => {
-    const { id } = req.params;
-    
+// Endpoint to get all shares grouped by track
+app.get('/shares-by-track', async (req: Request, res: Response) => {
     try {
         const dbData = await fs.readFile(dbPath, 'utf-8');
         const db: Database = JSON.parse(dbData);
-        const submissionIndex = db.tracks.findIndex(s => s.id === id);
+        
+        const sharesByOnChainTrackId: { [onChainTrackId: string]: Share[] } = {};
+        
+        // Create a map from DB track ID to on-chain track ID for quick lookup
+        const trackIdMap = new Map<string, string>();
+        db.tracks.forEach(track => {
+            if (track.id && track.onChainTrackId) {
+                trackIdMap.set(track.id, track.onChainTrackId);
+            }
+        });
 
-        if (submissionIndex === -1) {
-            return res.status(404).json({ error: 'Track not found.' });
+        for (const share of db.shares) {
+            // Find the on-chain ID for the track that was shared
+            const onChainTrackId = trackIdMap.get(share.trackId);
+            if (onChainTrackId) {
+                if (!sharesByOnChainTrackId[onChainTrackId]) {
+                    sharesByOnChainTrackId[onChainTrackId] = [];
+                }
+                sharesByOnChainTrackId[onChainTrackId].push(share);
+            }
         }
 
-        db.tracks[submissionIndex].reportCount += 1;
-        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-        
-        res.status(200).json(db.tracks[submissionIndex]);
+        res.json(sharesByOnChainTrackId);
     } catch (error) {
-        console.error('Error reporting submission:', error);
-        res.status(500).json({ error: 'Failed to report submission.' });
+        console.error('Error reading shares from database:', error);
+        res.status(500).json({ error: 'Failed to retrieve shares.' });
     }
 });
 
-
-// Get platform statistics
-app.get('/stats', async (req: Request, res: Response) => {
-    try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        const tracks = db.tracks || [];
-
-        const totalSubmissions = tracks.length;
-        const pendingCount = tracks.filter((t: Track) => t.status === 'pending').length;
-        const approvedCount = tracks.filter((t: Track) => t.status === 'approved').length;
-        const rejectedCount = tracks.filter((t: Track) => t.status === 'rejected').length;
-        const publishedCount = tracks.filter((t: Track) => t.status === 'published').length;
-
-        res.json({
-            totalSubmissions,
-            pending: pendingCount,
-            approved: approvedCount,
-            rejected: rejectedCount,
-            published: publishedCount
-        });
-    } catch (error) {
-        console.error('Error getting stats:', error);
-        res.status(500).json({ error: 'Failed to get stats.' });
-    }
-});
-
+// Submit a proof of share
 app.post('/shares', async (req: Request, res: Response) => {
-    const { walletAddress, trackId } = req.body;
-
-    if (!walletAddress || !trackId) {
-        return res.status(400).json({ error: 'walletAddress and trackId are required.' });
-    }
-
     try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-
+        const { walletAddress, trackId, shareUrl } = req.body; // trackId here is the DB ID
+        if (!walletAddress || !trackId || !shareUrl) {
+            return res.status(400).json({ error: 'walletAddress, trackId, and shareUrl are required.' });
+        }
+        
         const newShare: Share = {
+            id: uuidv4(),
             walletAddress,
             trackId,
             sharedAt: new Date().toISOString()
         };
 
-        if (!db.shares) {
-            db.shares = [];
-        }
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+        
         db.shares.push(newShare);
+        
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
-        res.status(201).json({ message: 'Share recorded successfully.', share: newShare });
+        res.status(201).json({ message: 'Share recorded successfully!', share: newShare });
     } catch (error) {
         console.error('Error recording share:', error);
         res.status(500).json({ error: 'Failed to record share.' });
     }
 });
 
-app.get('/rewards-batch', async (req: Request, res: Response) => {
-    const REWARD_PER_SHARE = 10; // This can be configured later
-
-    try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        const shares = db.shares || [];
-
-        if (shares.length === 0) {
-            return res.status(200).json({ message: 'No shares to process.', rewards: [], csv: '', totalShares: 0, totalWallets: 0, totalTokens: 0 });
-        }
-
-        const rewards: { [key: string]: number } = {};
-        for (const share of shares) {
-            rewards[share.walletAddress] = (rewards[share.walletAddress] || 0) + REWARD_PER_SHARE;
-        }
-        
-        const rewardsArray = Object.entries(rewards).map(([walletAddress, amount]) => ({
-            walletAddress,
-            amount
-        }));
-
-        const csv = rewardsArray.map(r => `${r.walletAddress},${r.amount}`).join('\n');
-
-        res.status(200).json({ 
-            rewards: rewardsArray, 
-            csv,
-            totalShares: shares.length,
-            totalWallets: rewardsArray.length,
-            totalTokens: shares.length * REWARD_PER_SHARE
-        });
-
-    } catch (error) {
-        console.error('Error generating rewards batch:', error);
-        res.status(500).json({ error: 'Failed to generate rewards batch.' });
-    }
-});
-
-app.delete('/shares', async (req: Request, res: Response) => {
-    try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        
-        const clearedSharesCount = db.shares ? db.shares.length : 0;
-        db.shares = []; // Clear the shares array
-
-        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-
-        res.status(200).json({ message: `Successfully cleared ${clearedSharesCount} share records.` });
-    } catch (error) {
-        console.error('Error clearing shares:', error);
-        res.status(500).json({ error: 'Failed to clear shares.' });
-    }
-});
 
 // --- Server Initialization ---
 const startServer = async () => {
@@ -432,4 +375,4 @@ const startServer = async () => {
     });
 };
 
-startServer().catch(console.error); 
+startServer();

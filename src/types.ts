@@ -11,6 +11,7 @@ export interface Track {
   transactionHash?: string;
   submissionDate: string;
   artistWallet: string;
+  onChainTrackId?: string;
 }
 
 export type Genre = string; 

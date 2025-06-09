@@ -41,6 +41,11 @@ contract AxepVoting {
     mapping(string => uint256[]) private _trackIdsByGenre;
     uint256[] public allTrackIds;
 
+    // Share reward variables
+    uint256 public shareRewardAmount;
+    mapping(uint256 => mapping(address => string)) public proofOfShares; // trackId => user => url
+    mapping(uint256 => mapping(address => bool)) public rewardedShares; // trackId => user => bool
+
     // --- Events ---
     event ArtistRegistered(uint256 indexed artistId, string name, address indexed artistWallet);
     event TrackUploaded(
@@ -51,11 +56,14 @@ contract AxepVoting {
         string videoUrl
     );
     event Voted(uint256 indexed trackId, address indexed voter);
+    event ShareRecorded(uint256 indexed trackId, address indexed sharer, string shareUrl);
+    event ShareRewardsDistributed(uint256 indexed trackId, address indexed distributor);
 
     // --- Constructor ---
     constructor(address _tokenAddress) {
         owner = msg.sender;
         axpToken = IERC20(_tokenAddress);
+        shareRewardAmount = 500 * (10**18); // Default to 500 tokens, assuming 18 decimals
 
         // Hardcoding genres for simplicity, removing admin functions
         officialGenres.push("Pop");
@@ -146,6 +154,13 @@ contract AxepVoting {
         emit Voted(trackId, msg.sender);
     }
 
+    function recordShare(uint256 _trackId, string calldata _shareUrl) external {
+        require(tracks[_trackId].id != 0, "Track does not exist.");
+        require(bytes(_shareUrl).length > 0, "Share URL cannot be empty.");
+        proofOfShares[_trackId][msg.sender] = _shareUrl;
+        emit ShareRecorded(_trackId, msg.sender, _shareUrl);
+    }
+
     // --- View Functions ---
 
     function getArtist(uint256 artistId) external view returns (Artist memory) {
@@ -156,12 +171,12 @@ contract AxepVoting {
         return tracks[trackId];
     }
 
-    function getAllTrackIds() external view returns (uint256[] memory) {
-        return allTrackIds;
-    }
-
     function getTrackIdsByGenre(string calldata genre) external view returns (uint256[] memory) {
         return _trackIdsByGenre[genre];
+    }
+
+    function getAllTrackIds() external view returns (uint256[] memory) {
+        return allTrackIds;
     }
     
     function getOfficialGenres() external view returns (string[] memory) {
@@ -221,5 +236,27 @@ contract AxepVoting {
     function withdraw() external {
         require(msg.sender == owner, "Only owner can withdraw.");
         payable(owner).transfer(address(this).balance);
+    }
+
+    function setShareRewardAmount(uint256 _newAmount) external {
+        require(msg.sender == owner, "Only owner can call this function.");
+        shareRewardAmount = _newAmount;
+    }
+
+    function batchDistributeShareRewards(uint256 _trackId, address[] calldata _recipients) external {
+        require(msg.sender == owner, "Only owner can call this function.");
+
+        uint256 rewardAmount = shareRewardAmount;
+        require(axpToken.balanceOf(address(this)) >= rewardAmount * _recipients.length, "Insufficient token balance in contract.");
+
+        for(uint i = 0; i < _recipients.length; i++) {
+            address recipient = _recipients[i];
+            // Check for proof of share and that they haven't been rewarded yet
+            if(bytes(proofOfShares[_trackId][recipient]).length > 0 && !rewardedShares[_trackId][recipient]) {
+                rewardedShares[_trackId][recipient] = true;
+                axpToken.transfer(recipient, rewardAmount);
+            }
+        }
+        emit ShareRewardsDistributed(_trackId, msg.sender);
     }
 } 

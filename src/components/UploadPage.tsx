@@ -1,5 +1,6 @@
 import React, { useState, type ChangeEvent, useEffect } from 'react';
 import api from '../services/api';
+import { Grid, TextField } from '@mui/material';
 
 const UploadPage: React.FC = () => {
   // Removed all wagmi hooks (useAccount, useWriteContract, etc.)
@@ -108,7 +109,7 @@ const UploadPage: React.FC = () => {
       </div>
 
       <div style={{ margin: '20px 0' }}>
-        <label htmlFor="artistWallet">Your Payout Wallet Address (Polygon):</label><br />
+        <label htmlFor="artistWallet">Your Wallet Address (Polygon):</label><br />
         <input 
             type="text" 
             id="artistWallet" 
