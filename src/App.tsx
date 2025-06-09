@@ -1,20 +1,8 @@
-import { WagmiProvider, createConfig } from 'wagmi';
-import { polygonAmoy as amoy } from 'wagmi/chains';
-import {
-  QueryClientProvider,
-  QueryClient,
-} from "@tanstack/react-query";
-import {
-  RainbowKitProvider,
-  getDefaultConfig,
-  ConnectButton,
-} from '@rainbow-me/rainbowkit';
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Link
-} from 'react-router-dom';
+import { WagmiProvider } from 'wagmi';
+import { QueryClientProvider } from "@tanstack/react-query";
+import { RainbowKitProvider, ConnectButton } from '@rainbow-me/rainbowkit';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { wagmiConfig, queryClient } from './services/walletService';
 import './App.css';
 import '@rainbow-me/rainbowkit/styles.css';
 
@@ -24,16 +12,6 @@ import UploadPage from './components/UploadPage';
 import TokenReward from './components/TokenReward';
 import NFTShop from './components/NFTShop';
 import AdminPage from './components/AdminPage';
-
-// Setup wagmi config
-export const wagmiConfig = getDefaultConfig({
-  appName: 'Web3 Music Platform',
-  projectId: '71c23f5b5f6d09f86ec684747eca45cb',
-  chains: [amoy],
-  ssr: false,
-});
-
-const queryClient = new QueryClient();
 
 function App() {
   return (
