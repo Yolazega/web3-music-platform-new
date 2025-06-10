@@ -56,7 +56,7 @@ const AdminPage: React.FC = () => {
     const [tallyVoteCounts, setTallyVoteCounts] = useState<string[]>([]);
     const [isTallyLoading, setIsTallyLoading] = useState(false);
     const [tallyError, setTallyError] = useState<string|null>(null);
-    const [isClearingVotes, setIsClearingVotes] = useState(false);
+    const [isMarkingTallied, setIsMarkingTallied] = useState(false);
     
     const { data: syncReceipt, isLoading: isWaitingForSyncReceipt } = useWaitForTransactionReceipt({ hash: txHash });
 
@@ -193,20 +193,23 @@ const AdminPage: React.FC = () => {
         if (syncReceipt) handleSyncOnChainData(syncReceipt);
     }, [syncReceipt, handleSyncOnChainData]);
     
-    const handleClearVotes = async () => {
-        if (!window.confirm("Are you sure you have submitted the batch vote transaction? This action will clear the current tally and cannot be undone.")) {
+    const handleMarkVotesTallied = async () => {
+        if (!window.confirm("CONFIRM: Have you successfully submitted the vote transaction on-chain? This will mark all unprocessed votes as tallied and cannot be undone.")) {
             return;
         }
-        setIsClearingVotes(true);
+        setIsMarkingTallied(true);
         try {
-            await api.post('/votes/clear');
-            alert("Tallied votes cleared successfully.");
+            await api.post('/votes/mark-tallied');
+            alert("Votes marked as tallied successfully.");
+            // Refresh data
+            fetchSubmissions(); 
             fetchVoteTally();
             setIsVoteTallyModalOpen(false);
         } catch(err) {
-            alert("Failed to clear votes. Please try again.");
+            alert("Failed to mark votes as tallied. Please try again.");
+            console.error(err);
         } finally {
-            setIsClearingVotes(false);
+            setIsMarkingTallied(false);
         }
     }
     
@@ -353,7 +356,7 @@ const AdminPage: React.FC = () => {
                 {voteTally && stats.unprocessedVotes > 0 ? (
                     <>
                         <Typography sx={{ mt: 2 }}>
-                            Use this data to call `adminBatchVote` in Remix. After the transaction is confirmed, click the button below to clear the processed votes.
+                            Use this data to call `adminBatchVote` in Remix. After the transaction is confirmed, click the button below to mark the votes as tallied.
                         </Typography>
                          <Box sx={{ mt: 2, p: 2, border: '1px solid grey', borderRadius: 1, backgroundColor: '#f5f5f5' }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -362,7 +365,9 @@ const AdminPage: React.FC = () => {
                                     {copiedKey === 'tallyTrackIds' ? <CheckIcon color="success" /> : <ContentCopyIcon />}
                                 </IconButton>
                             </Box>
-                            <pre>{JSON.stringify(tallyTrackIds, null, 2)}</pre>
+                            <Typography variant="body1" sx={{ mt: 2, fontFamily: 'monospace', whiteSpace: 'pre-wrap', bgcolor: '#f5f5f5', p: 2, borderRadius: 1 }}>
+                                {JSON.stringify(tallyTrackIds, null, 2)}
+                            </Typography>
                         </Box>
                          <Box sx={{ mt: 2, p: 2, border: '1px solid grey', borderRadius: 1, backgroundColor: '#f5f5f5' }}>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -371,10 +376,18 @@ const AdminPage: React.FC = () => {
                                     {copiedKey === 'tallyVoteCounts' ? <CheckIcon color="success" /> : <ContentCopyIcon />}
                                 </IconButton>
                             </Box>
-                            <pre>{JSON.stringify(tallyVoteCounts, null, 2)}</pre>
+                            <Typography variant="body1" sx={{ mt: 2, fontFamily: 'monospace', whiteSpace: 'pre-wrap', bgcolor: '#f5f5f5', p: 2, borderRadius: 1 }}>
+                                {JSON.stringify(tallyVoteCounts, null, 2)}
+                            </Typography>
                         </Box>
-                        <Button fullWidth variant="contained" color="warning" onClick={handleClearVotes} disabled={isClearingVotes} sx={{ mt: 3 }}>
-                            {isClearingVotes ? <CircularProgress size={24} /> : 'Confirm TX & Clear Tallied Votes'}
+                        <Button 
+                            variant="contained" 
+                            color="primary" 
+                            onClick={handleMarkVotesTallied}
+                            disabled={isMarkingTallied}
+                            sx={{ mt: 2 }}
+                        >
+                            {isMarkingTallied ? <CircularProgress size={24} /> : "Confirm & Mark Votes Tallied"}
                         </Button>
                     </>
                 ) : (

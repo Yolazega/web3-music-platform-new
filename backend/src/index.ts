@@ -46,7 +46,7 @@ interface Vote {
     onChainTrackId: string;
     voterIdentifier: string; // Using IP address for simple uniqueness
     votedAt: string;
-    status: 'tallied' | 'processed';
+    status: 'unprocessed' | 'tallied';
 }
 
 interface Database {
@@ -104,6 +104,11 @@ const uploadToPinata = async (file: Express.Multer.File): Promise<string> => {
     if (!PINATA_JWT) {
         throw new Error('Pinata JWT is not configured on the server.');
     }
+    console.log('Attempting to upload to Pinata with file details:', {
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+    });
     const url = `https://api.pinata.cloud/pinning/pinFileToIPFS`;
     const formData = new FormData();
     formData.append('file', file.buffer, { 
@@ -396,7 +401,7 @@ app.post('/votes', async (req: Request, res: Response) => {
         // Check if track exists and is published
         const trackExists = db.tracks.some(t => t.onChainTrackId === onChainTrackId && t.status === 'published');
         if (!trackExists) {
-            return res.status(404).json({ error: 'This track is not available for voting.' });
+            return res.status(404).json({ error: 'Track not found or not open for voting.' });
         }
         
         // Anti-abuse: Check if this IP has voted for this track in the last 24 hours
@@ -416,7 +421,7 @@ app.post('/votes', async (req: Request, res: Response) => {
             onChainTrackId,
             voterIdentifier,
             votedAt: new Date().toISOString(),
-            status: 'tallied'
+            status: 'unprocessed'
         };
 
         db.votes.push(newVote);
@@ -431,49 +436,71 @@ app.post('/votes', async (req: Request, res: Response) => {
 });
 
 // Get the tally of unprocessed votes for the admin page
+app.get('/votes/unprocessed-count', async (req: Request, res: Response) => {
+    try {
+        const dbData = await fs.readFile(dbPath, 'utf-8');
+        const db: Database = JSON.parse(dbData);
+        const unprocessedVotes = db.votes.filter(v => v.status === 'unprocessed');
+        res.status(200).json({ count: unprocessedVotes.length });
+    } catch (error) {
+        console.error('Error getting unprocessed vote count:', error);
+        res.status(500).json({ error: 'Failed to get unprocessed vote count.' });
+    }
+});
+
+// Tally votes and prepare them for the admin
 app.get('/votes/tally', async (req: Request, res: Response) => {
     try {
         const dbData = await fs.readFile(dbPath, 'utf-8');
         const db: Database = JSON.parse(dbData);
 
-        const unprocessedVotes = db.votes.filter(v => v.status === 'tallied');
+        // BUG FIX: Tally votes that are 'unprocessed'
+        const unprocessedVotes = db.votes.filter(v => v.status === 'unprocessed');
 
+        if (unprocessedVotes.length === 0) {
+            return res.status(200).json({
+                message: 'No new votes to tally.',
+                tally: {},
+                totalVotes: 0
+            });
+        }
+
+        // Group votes by onChainTrackId
         const tally = unprocessedVotes.reduce((acc, vote) => {
             acc[vote.onChainTrackId] = (acc[vote.onChainTrackId] || 0) + 1;
             return acc;
         }, {} as Record<string, number>);
 
-        const trackIds = Object.keys(tally);
-        const voteCounts = Object.values(tally);
-
-        res.status(200).json({ tally, trackIds, voteCounts });
+        res.status(200).json({
+            message: 'Votes tallied successfully.',
+            tally,
+            totalVotes: unprocessedVotes.length
+        });
     } catch (error) {
-        console.error('Error getting vote tally:', error);
-        res.status(500).json({ error: 'Failed to get vote tally.' });
+        console.error('Error tallying votes:', error);
+        res.status(500).json({ error: 'Failed to tally votes.' });
     }
 });
 
-// Mark all tallied votes as processed after admin submits them on-chain
-app.post('/votes/clear', async (req: Request, res: Response) => {
+// Mark votes as processed after the admin sends the transaction
+app.post('/votes/mark-tallied', async (req: Request, res: Response) => {
     try {
         const dbData = await fs.readFile(dbPath, 'utf-8');
         const db: Database = JSON.parse(dbData);
         
-        let processedCount = 0;
+        let talliedCount = 0;
         db.votes.forEach(vote => {
-            if (vote.status === 'tallied') {
-                vote.status = 'processed';
-                processedCount++;
+            if (vote.status === 'unprocessed') {
+                vote.status = 'tallied';
+                talliedCount++;
             }
         });
 
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-
-        res.status(200).json({ message: `Successfully cleared ${processedCount} processed votes.` });
-
+        res.status(200).json({ message: `${talliedCount} votes marked as tallied.` });
     } catch (error) {
-        console.error('Error clearing votes:', error);
-        res.status(500).json({ error: 'Failed to clear votes.' });
+        console.error('Error marking votes as tallied:', error);
+        res.status(500).json({ error: 'Failed to mark votes as tallied.' });
     }
 });
 
