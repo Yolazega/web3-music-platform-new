@@ -62,7 +62,7 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
                         Genre: {track.genre}
                     </Typography>
                     <Link href={track.videoUrl} target="_blank" rel="noopener noreferrer" sx={{ mt: 1, display: 'block' }}>
-                        Listen/View on IPFS
+                        Watch Video
                     </Link>
                 </CardContent>
                 <CardActions sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>

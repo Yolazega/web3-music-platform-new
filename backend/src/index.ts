@@ -398,24 +398,30 @@ app.post('/votes', async (req: Request, res: Response) => {
         const dbData = await fs.readFile(dbPath, 'utf-8');
         const db: Database = JSON.parse(dbData);
 
-        // Check if track exists and is published
+        // Check if the same IP has already voted for this specific track
+        const alreadyVotedForTrack = db.votes.some(
+            vote => vote.voterIdentifier === voterIdentifier && vote.onChainTrackId === onChainTrackId
+        );
+        if (alreadyVotedForTrack) {
+            return res.status(409).json({ error: 'You have already voted for this track.' });
+        }
+        
+        // BUG FIX: Implement one vote per user per week across all tracks
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const hasVotedRecently = db.votes.some(
+            vote => vote.voterIdentifier === voterIdentifier && new Date(vote.votedAt) > sevenDaysAgo
+        );
+
+        if (hasVotedRecently) {
+            return res.status(403).json({ error: 'You can only vote once per week.' });
+        }
+
+        // Check if the track exists and is published
         const trackExists = db.tracks.some(t => t.onChainTrackId === onChainTrackId && t.status === 'published');
         if (!trackExists) {
             return res.status(404).json({ error: 'Track not found or not open for voting.' });
         }
         
-        // Anti-abuse: Check if this IP has voted for this track in the last 24 hours
-        const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
-        const recentVote = db.votes.find(v => 
-            v.onChainTrackId === onChainTrackId && 
-            v.voterIdentifier === voterIdentifier &&
-            new Date(v.votedAt).getTime() > twentyFourHoursAgo
-        );
-
-        if (recentVote) {
-            return res.status(429).json({ error: 'You have already voted for this track recently.' });
-        }
-
         const newVote: Vote = {
             id: uuidv4(),
             onChainTrackId,

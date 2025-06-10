@@ -53,7 +53,7 @@ const AdminPage: React.FC = () => {
     const [isVoteTallyModalOpen, setIsVoteTallyModalOpen] = useState(false);
     const [voteTally, setVoteTally] = useState<Record<string, number> | null>(null);
     const [tallyTrackIds, setTallyTrackIds] = useState<string[]>([]);
-    const [tallyVoteCounts, setTallyVoteCounts] = useState<string[]>([]);
+    const [tallyVoteCounts, setTallyVoteCounts] = useState<number[]>([]);
     const [isTallyLoading, setIsTallyLoading] = useState(false);
     const [tallyError, setTallyError] = useState<string|null>(null);
     const [isMarkingTallied, setIsMarkingTallied] = useState(false);
@@ -83,9 +83,10 @@ const AdminPage: React.FC = () => {
         setIsTallyLoading(true); setTallyError(null);
         try {
             const res = await api.get('/votes/tally');
-            setVoteTally(res.data.tally);
-            setTallyTrackIds(res.data.trackIds);
-            setTallyVoteCounts(res.data.voteCounts);
+            const tallyData = res.data.tally || {};
+            setVoteTally(tallyData);
+            setTallyTrackIds(Object.keys(tallyData));
+            setTallyVoteCounts(Object.values(tallyData));
         } catch (err) {
             setTallyError("Failed to fetch vote tally.");
         } finally {
@@ -275,7 +276,7 @@ const AdminPage: React.FC = () => {
                                 <TableCell>{track.trackTitle}</TableCell>
                                 <TableCell>{track.status}</TableCell>
                                 <TableCell>
-                                    <Link href={track.coverImageUrl} target="_blank" rel="noopener noreferrer">Cover</Link> | <Link href={track.videoUrl} target="_blank" rel="noopener noreferrer">Video</Link>
+                                    <Link href={track.coverImageUrl} target="_blank" rel="noopener noreferrer">Cover</Link> | <Link href={track.videoUrl} target="_blank" rel="noopener noreferrer">Watch</Link>
                                 </TableCell>
                                 <TableCell>
                                     {track.status === 'pending' && (
