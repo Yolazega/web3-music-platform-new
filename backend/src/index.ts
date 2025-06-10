@@ -125,7 +125,18 @@ const uploadToPinata = async (file: Express.Multer.File): Promise<string> => {
     if (!ipfsHash) {
         throw new Error('IPFS hash not found in Pinata response.');
     }
-    return `${IPFS_GATEWAY_URL}${ipfsHash}`;
+    
+    let gatewayUrl = `${IPFS_GATEWAY_URL}${ipfsHash}`;
+
+    // If the uploaded file is a video, append a filename parameter to the URL
+    // This encourages browsers/gateways to stream the content rather than download it.
+    if (file.mimetype.startsWith('video/')) {
+        // We use a generic name to avoid issues with special characters in the original filename.
+        const originalFilename = encodeURIComponent(file.originalname);
+        gatewayUrl = `${gatewayUrl}?filename=${originalFilename}`;
+    }
+
+    return gatewayUrl;
 };
 
 // --- API Endpoints ---
