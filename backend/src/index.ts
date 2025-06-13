@@ -419,10 +419,15 @@ app.post('/admin/verify-share/:id', async (req: Request, res: Response) => {
 
 // --- Server Initialization ---
 const startServer = async () => {
-    await initializeDatabase();
-    app.listen(port, () => {
-        console.log(`Backend server is running on http://localhost:${port}`);
-    });
+    try {
+        await initializeDatabase();
+        app.listen(port, () => {
+            console.log(`Backend server is running on http://localhost:${port}`);
+        });
+    } catch (error) {
+        console.error("Failed to start server:", error);
+        process.exit(1);
+    }
 };
 
 startServer();
