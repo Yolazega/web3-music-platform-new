@@ -119,7 +119,7 @@ const UploadPage: React.FC = () => {
             disabled={isUploading} 
             style={{width: '300px'}}
         />
-        <p><small>This is where any potential rewards will be sent. Please double-check it.</small></p>
+        <p><small>Your wallet address is needed to uniquely identify your song for the voting process. Please ensure it's correct.</small></p>
       </div>
 
       <div style={{ margin: '20px 0' }}>
