@@ -52,7 +52,7 @@ const UploadPage: React.FC = () => {
             }
         });
 
-        if (response.status === 200) {
+        if (response.status === 201) {
             setUploadProgress('Upload complete! Your track is being processed.');
             setUploadSuccess(true);
             // Reset form
