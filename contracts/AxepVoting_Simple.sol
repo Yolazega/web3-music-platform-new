@@ -40,6 +40,12 @@ contract AxepVoting is Ownable {
     mapping(string => uint256[]) private _trackIdsByGenre;
     uint256[] public allTrackIds;
 
+    // --- Winner Selection State ---
+    uint256 public currentVotingPeriod;
+    uint256 public winningTrackId; 
+    uint256 public lastWinnerTimestamp;
+    mapping(uint256 => uint256) public historicalWinners; // period => winning trackId
+
     uint256 public shareRewardAmount;
     mapping(uint256 => mapping(address => string)) public proofOfShares;
     mapping(uint256 => mapping(address => bool)) public rewardedShares;
@@ -57,11 +63,14 @@ contract AxepVoting is Ownable {
     event ShareRecorded(uint256 indexed trackId, address indexed sharer, string shareUrl);
     event ShareRewardsDistributed(uint256 indexed trackId, address indexed distributor);
     event VotesTallied(uint256[] trackIds, uint256[] voteCounts);
+    event WinnerSelected(uint256 indexed votingPeriod, uint256 indexed trackId, uint256 voteCount);
+
 
     // --- Constructor ---
     constructor(address _tokenAddress) Ownable(msg.sender) {
         axpToken = IERC20(_tokenAddress);
         shareRewardAmount = 500 * (10**18);
+        currentVotingPeriod = 1;
 
         officialGenres.push("Pop");
         officialGenres.push("Soul");
@@ -146,6 +155,13 @@ contract AxepVoting is Ownable {
         return officialGenres;
     }
 
+    function getWinningTrackDetails() external view returns (Track memory, Artist memory) {
+        require(winningTrackId != 0, "No winner has been selected yet.");
+        Track memory winnerTrack = tracks[winningTrackId];
+        Artist memory winnerArtist = artists[winnerTrack.artistId];
+        return (winnerTrack, winnerArtist);
+    }
+
     // --- Internal Functions ---
 
     function _registerSingleTrackFromBatch(
@@ -200,6 +216,38 @@ contract AxepVoting is Ownable {
     }
 
     // --- Owner Functions ---
+    function finalizeVotingAndSelectWinner(uint256[] calldata _trackIdsForPeriod) external onlyOwner {
+        require(_trackIdsForPeriod.length > 0, "Cannot determine winner from an empty set of tracks.");
+
+        uint256 maxVotes = 0;
+        uint256 currentWinnerId = 0;
+
+        for (uint i = 0; i < _trackIdsForPeriod.length; i++) {
+            uint256 trackId = _trackIdsForPeriod[i];
+            uint256 votes = trackVotes[trackId];
+
+            if (votes > maxVotes) {
+                maxVotes = votes;
+                currentWinnerId = trackId;
+            }
+        }
+
+        require(currentWinnerId != 0, "No track with votes found to select a winner.");
+
+        winningTrackId = currentWinnerId;
+        lastWinnerTimestamp = block.timestamp;
+        historicalWinners[currentVotingPeriod] = winningTrackId;
+
+        emit WinnerSelected(currentVotingPeriod, winningTrackId, maxVotes);
+        
+        // Reset votes for the next period and advance the period counter
+        for (uint i = 0; i < _trackIdsForPeriod.length; i++) {
+            trackVotes[_trackIdsForPeriod[i]] = 0;
+        }
+
+        currentVotingPeriod++;
+    }
+
     function withdraw() external onlyOwner {
         payable(owner()).transfer(address(this).balance);
     }

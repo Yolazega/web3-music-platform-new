@@ -1,136 +1,137 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount, useReadContracts } from 'wagmi';
-import { Card, CardContent, Container, Typography, Grid, CircularProgress, Alert } from '@mui/material';
-import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from '../config';
-import { Abi } from 'viem';
+import { Container, Typography, Grid, Card, CardContent, CardMedia, Button, Box, CircularProgress, Alert } from '@mui/material';
+import { Link } from 'react-router-dom';
+import api from '../services/api';
+import { Track } from '../types'; 
 
-// This defines the shape of a single contract call for wagmi's useReadContracts
-interface ContractReadCall {
-  address: `0x${string}`;
-  abi: Abi;
-  functionName: string;
-  args?: readonly unknown[];
+// --- Component for a single Genre Winner ---
+interface GenreWinnerCardProps {
+    genre: string;
+    track: Track;
 }
 
+const GenreWinnerCard: React.FC<GenreWinnerCardProps> = ({ genre, track }) => {
+    return (
+        <Card sx={{ display: 'flex', flexDirection: 'column', height: '100%', border: '1px solid #ddd' }}>
+            <CardMedia
+                component="img"
+                height="200"
+                image={track.coverImageUrl || 'https://via.placeholder.com/200'}
+                alt={`Cover for ${track.title}`}
+            />
+            <CardContent sx={{ flexGrow: 1 }}>
+                <Typography gutterBottom variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
+                    {genre.toUpperCase()}
+                </Typography>
+                <Typography variant="body1" color="text.secondary">
+                    {track.artist} - "{track.title}"
+                </Typography>
+                <Typography variant="body2" color="primary">
+                    Votes: {track.votes.toLocaleString()}
+                </Typography>
+            </CardContent>
+        </Card>
+    );
+};
+
+// --- Main Home Page Component ---
 const HomePage: React.FC = () => {
-    const { address: accountAddress, isConnected } = useAccount();
-    
-    // State to hold the formatted results from the contract reads
-    const [stats, setStats] = useState<{
-        balanceOf?: string;
-        getAirdropAmount?: string;
-        getWinnerCount?: string;
-    }>({});
+    const [topTracks, setTopTracks] = useState<{ [genre: string]: Track }>({});
+    const [mainWinner, setMainWinner] = useState<Track | null>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
 
-    // The array of contract calls we want to make
-    const contracts: readonly ContractReadCall[] = isConnected && accountAddress ? [
-        {
-            address: AXEP_VOTING_CONTRACT_ADDRESS,
-            abi: AXEP_VOTING_CONTRACT_ABI,
-            functionName: 'balanceOf',
-            args: [accountAddress]
-        },
-        {
-            address: AXEP_VOTING_CONTRACT_ADDRESS,
-            abi: AXEP_VOTING_CONTRACT_ABI,
-            functionName: 'getAirdropAmount',
-            args: [accountAddress]
-        },
-        {
-            address: AXEP_VOTING_CONTRACT_ADDRESS,
-            abi: AXEP_VOTING_CONTRACT_ABI,
-            functionName: 'getWinnerCount',
-            args: [accountAddress]
-        },
-    ] : [];
-
-    // The wagmi hook to read from the contracts
-    const { data: contractData, isLoading, isError, error } = useReadContracts({
-        contracts, // This is now correctly typed
-        query: {
-            enabled: isConnected && !!accountAddress, // Only run query if connected
-            refetchInterval: 15000, // Refetch every 15 seconds
-        }
-    });
-
-    // Helper function to format bigint values from the contract
-    const formatBigInt = (value?: unknown): string => {
-        if (typeof value !== 'bigint') return '...';
-        // A simple formatting for 18 decimal places
-        const number = Number(value) / 1e18;
-        return number.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
-    };
-
-    // Effect to process the data when it comes back from the hook
     useEffect(() => {
-        if (contractData) {
-            setStats({
-                balanceOf: formatBigInt(contractData[0]?.result),
-                getAirdropAmount: formatBigInt(contractData[1]?.result),
-                getWinnerCount: typeof contractData[2]?.result === 'bigint' ? contractData[2].result.toString() : '...',
-            });
-        }
-    }, [contractData]);
+        const fetchHomePageData = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const [topByGenreRes, mainWinnerRes] = await Promise.all([
+                    api.get('/tracks/top-by-genre'),
+                    api.get('/tracks/overall-winner')
+                ]);
+                setTopTracks(topByGenreRes.data);
+                setMainWinner(mainWinnerRes.data);
+            } catch (err) {
+                setError('Failed to load the top tracks. Please try again later.');
+                console.error('Error fetching homepage data:', err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchHomePageData();
+    }, []);
+
+    const genres = ["Pop", "Soul", "Rock", "Country", "RAP"];
 
     return (
-        <Container maxWidth="lg" sx={{ mt: 4 }}>
-            <Typography variant="h4" component="h1" gutterBottom>
-                Welcome to the AXEP Music Platform
+        <Container maxWidth="lg" sx={{ mt: 4, textAlign: 'center' }}>
+            <Typography variant="h2" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+                VOTE SHARE CLAIM
             </Typography>
-            <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4 }}>
-                Discover, vote, and get rewarded. Connect your wallet to see your personal dashboard.
+            <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4, maxWidth: '600px', mx: 'auto' }}>
+                Axep is a Web3-based music platform that rewards both artists and fans. The platform democratizes online casting by issuing tokens as rewards for social media activity. The goal is to reduce the dominant role of major music labels and provide artists and supporters with direct benefits from their engagement.
             </Typography>
-            
-            {isError && (
-                 <Alert severity="error" sx={{ mb: 2 }}>
-                    Error fetching your on-chain data: {error?.message || 'An unknown error occurred.'}
-                 </Alert>
-            )}
+             <Typography variant="body1" sx={{ fontStyle: 'italic', mb: 4 }}>
+                "The times when fans did not participate in the success of the artists they supported are over."
+            </Typography>
 
-            {!isConnected ? (
-                <Alert severity="info">Please connect your wallet to view your dashboard.</Alert>
-            ) : isLoading ? (
-                <Grid container justifyContent="center"><CircularProgress /></Grid>
-            ) : (
-                <Grid container spacing={3}>
-                    <Grid item xs={12} md={4}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="text.secondary" gutterBottom>
-                                    Your AXP Balance
-                                </Typography>
-                                <Typography variant="h5" component="div">
-                                    {stats.balanceOf} AXP
-                                </Typography>
-                            </CardContent>
-                        </Card>
+            {/* --- Genre Winners Section --- */}
+            <Grid container spacing={4} sx={{ mb: 6 }}>
+                {isLoading ? (
+                    <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'center' }}>
+                        <CircularProgress />
                     </Grid>
-                    <Grid item xs={12} md={4}>
-                        <Card>
-                            <CardContent>
-                                <Typography color="text.secondary" gutterBottom>
-                                    Claimable Airdrop
-                                </Typography>
-                                <Typography variant="h5" component="div">
-                                    {stats.getAirdropAmount} AXP
-                                </Typography>
-                            </CardContent>
-                        </Card>
+                ) : error ? (
+                    <Grid item xs={12}>
+                        <Alert severity="error">{error}</Alert>
                     </Grid>
-                    <Grid item xs={12} md={4}>
-                         <Card>
-                            <CardContent>
-                                <Typography color="text.secondary" gutterBottom>
-                                    Your Winning Tracks
-                                </Typography>
-                                <Typography variant="h5" component="div">
-                                    {stats.getWinnerCount}
-                                </Typography>
-                            </CardContent>
-                        </Card>
-                    </Grid>
+                ) : (
+                    genres.map(genre => {
+                        const track = topTracks[genre];
+                        return (
+                            <Grid item key={genre} xs={12} sm={6} md={2.4}>
+                                {track ? (
+                                    <Link to={`/genre/${genre.toLowerCase()}`} style={{ textDecoration: 'none' }}>
+                                        <GenreWinnerCard genre={genre} track={track} />
+                                    </Link>
+                                ) : (
+                                    <Card sx={{ height: '100%', border: '1px solid #ddd' }}>
+                                        <CardContent>
+                                            <Typography gutterBottom variant="h6" component="div">{genre.toUpperCase()}</Typography>
+                                            <Typography variant="body2" color="text.secondary">No winner yet</Typography>
+                                        </CardContent>
+                                    </Card>
+                                )}
+                            </Grid>
+                        );
+                    })
+                )}
+            </Grid>
+
+            {/* --- Connect Wallet & Main Winner Section --- */}
+            <Grid container spacing={4} alignItems="center" justifyContent="center">
+                 <Grid item xs={12} md={6}>
+                    <Box sx={{ p: 4, backgroundColor: '#000', color: '#fff', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                         {mainWinner ? (
+                            <>
+                                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>Current Main Winner</Typography>
+                                <Typography variant="h6">{mainWinner.artist} - "{mainWinner.title}"</Typography>
+                                <Typography>Votes: {mainWinner.votes.toLocaleString()}</Typography>
+                            </>
+                        ) : !isLoading && (
+                            <Typography variant="h6">No overall winner yet.</Typography>
+                        )}
+                    </Box>
                 </Grid>
-            )}
+                <Grid item xs={12} md={6}>
+                     {/* This section replaces the sub-winners */}
+                    <Button variant="contained" size="large" sx={{ py: 2, px: 5, fontSize: '1.2rem' }}>
+                        Connect Wallet
+                    </Button>
+                </Grid>
+            </Grid>
         </Container>
     );
 };

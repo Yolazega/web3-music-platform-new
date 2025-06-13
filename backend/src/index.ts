@@ -7,6 +7,10 @@ import FormData from 'form-data';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
+import { exec } from 'child_process';
+import { startOfWeek, differenceInWeeks } from 'date-fns';
+import { getCurrentWeekNumber, isSubmissionPeriodOver, isVotingPeriodOverForWeek } from './time';
+import { uploadToPinata } from './pinata';
 
 dotenv.config();
 
@@ -21,38 +25,48 @@ const dbPath = path.join(dataDir, 'db.json');
 // Define a type for our track object for better code quality
 interface Track {
     id: string;
-    artistName: string;
-    trackTitle: string;
-    genre: string;
+    title: string;
+    artist: string;
     artistWallet: string;
-    coverImageUrl: string;
-    videoUrl:string;
-    status: 'pending' | 'approved' | 'rejected' | 'published';
+    filePath: string;
+    ipfsHash: string;
+    genre: string;
+    status: 'pending' | 'approved' | 'rejected' | 'published' | 'archived';
+    onChainId?: number;
+    votes: number;
+    weekNumber: number;
+    coverImageUrl?: string;
+    videoUrl?: string;
     submittedAt: string;
-    reportCount: number;
-    transactionHash?: string;
-    onChainTrackId?: string; // To store the ID from the smart contract
 }
 
 interface Share {
     id: string;
-    walletAddress: string;
-    trackId: string; // This is the DB ID of the track
-    sharedAt: string;
+    trackId: string;
+    userId: string;
+    platform: string;
+    proofUrl: string;
+    status: 'pending' | 'verified' | 'rejected';
+    weekNumber: number;
 }
 
 interface Vote {
     id: string;
-    onChainTrackId: string;
-    voterIdentifier: string; // Using IP address for simple uniqueness
-    votedAt: string;
-    status: 'unprocessed' | 'tallied';
+    trackId: string;
+    voterAddress: string;
+    timestamp: number;
+    status: 'unprocessed' | 'processed' | 'tallied';
+    weekNumber: number;
 }
 
 interface Database {
     tracks: Track[];
     shares: Share[];
     votes: Vote[];
+}
+
+interface CustomRequest extends Request {
+    files?: { [fieldname: string]: Express.Multer.File[] };
 }
 
 // Function to ensure directory and file exist
@@ -62,7 +76,12 @@ const initializeDatabase = async () => {
         await fs.access(dbPath);
     } catch (error) {
         console.log('Database file not found. Creating a new one.');
-        await fs.writeFile(dbPath, JSON.stringify({ tracks: [], shares: [], votes: [] }), 'utf-8');
+        await fs.writeFile(dbPath, JSON.stringify({
+            tracks: [],
+            shares: [],
+            votes: [],
+            users: []
+        }, null, 2));
     }
 };
 
@@ -97,427 +116,304 @@ app.get('/', (req: Request, res: Response) => {
 
 // --- File Upload Setup ---
 const storage = multer.memoryStorage();
-const upload = multer({ storage });
-
-const uploadToPinata = async (file: Express.Multer.File): Promise<string> => {
-    const PINATA_JWT = process.env.PINATA_JWT;
-    if (!PINATA_JWT) {
-        throw new Error('Pinata JWT is not configured on the server.');
-    }
-    console.log('Attempting to upload to Pinata with file details:', {
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-    });
-    const url = `https://api.pinata.cloud/pinning/pinFileToIPFS`;
-    const formData = new FormData();
-    formData.append('file', file.buffer, { 
-        filename: file.originalname, 
-        contentType: file.mimetype 
-    });
-    const response = await axios.post(url, formData, {
-        headers: {
-            ...formData.getHeaders(),
-            'Authorization': `Bearer ${PINATA_JWT}`
-        }
-    });
-    const ipfsHash = response.data.IpfsHash;
-    if (!ipfsHash) {
-        throw new Error('IPFS hash not found in Pinata response.');
-    }
-    
-    let gatewayUrl = `${IPFS_GATEWAY_URL}${ipfsHash}`;
-
-    // If the uploaded file is a video, append a filename parameter to the URL
-    // This encourages browsers/gateways to stream the content rather than download it.
-    if (file.mimetype.startsWith('video/')) {
-        // We use a generic name to avoid issues with special characters in the original filename.
-        const originalFilename = encodeURIComponent(file.originalname);
-        gatewayUrl = `${gatewayUrl}?filename=${originalFilename}`;
-    }
-
-    return gatewayUrl;
-};
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 100 * 1024 * 1024 } // 100 MB limit
+});
 
 // --- API Endpoints ---
 
 // Upload a new track
 app.post('/upload', upload.fields([
     { name: 'coverImageFile', maxCount: 1 },
-    { name: 'videoFile', maxCount: 1 }
-]) as any, async (req: Request, res: Response) => {
+    { name: 'videoFile', maxCount: 1 },
+]), async (req: any, res: Response) => {
     try {
-        const { artistName, trackTitle, genre, artistWallet } = req.body;
+        if (isSubmissionPeriodOver()) {
+            return res.status(400).json({ error: 'The submission period for this week is over. Please try again next week.' });
+        }
+
+        const { artist, title, artistWallet, genre } = req.body;
         if (!artistWallet || !artistWallet.startsWith('0x')) {
             return res.status(400).json({ error: 'A valid artist wallet address is required.' });
         }
-        if (!req.files || !('coverImageFile' in req.files) || !('videoFile' in req.files)) {
+
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+        if (!files || !files['videoFile'] || !files['coverImageFile']) {
             return res.status(400).json({ error: 'Cover image and video file are required.' });
         }
-        const files = req.files as any;
-        const coverImageUrl = await uploadToPinata(files['coverImageFile'][0]);
-        const videoUrl = await uploadToPinata(files['videoFile'][0]);
         
+        const videoFile = files['videoFile'][0];
+        const coverImageFile = files['coverImageFile'][0];
+
+        // Let's assume you'll handle IPFS upload here or in a separate step
+        // For now, we save paths
         const newTrack: Track = {
             id: uuidv4(),
-            artistName,
-            trackTitle,
-            genre,
+            title: title,
+            artist: artist,
             artistWallet,
-            coverImageUrl,
-            videoUrl,
+            filePath: videoFile.path,
+            ipfsHash: '', // Will be set after successful IPFS upload
+            genre: genre,
             status: 'pending',
+            votes: 0,
+            weekNumber: getCurrentWeekNumber(),
             submittedAt: new Date().toISOString(),
-            reportCount: 0
+            coverImageUrl: coverImageFile.path,
+            videoUrl: videoFile.path,
         };
-        
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
+
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
         db.tracks.push(newTrack);
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
-        res.status(200).json({
-            message: 'Files uploaded successfully and submitted for review!',
-            track: newTrack
-        });
+        res.status(201).json({ message: 'Track uploaded successfully. It is pending approval.', track: newTrack });
     } catch (error) {
-        console.error('Error during upload process:', error);
-        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        res.status(500).json({ error: 'Failed to upload files.', details: errorMessage });
+        console.error('Error uploading track:', error);
+        res.status(500).json({ error: 'Failed to upload track.' });
     }
 });
 
-// Get all submissions
-app.get('/submissions', async (req: Request, res: Response) => {
-    const { status } = req.query;
-
+// Get all tracks (for public view)
+app.get('/tracks', async (req: Request, res: Response) => {
     try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        let tracks = db.tracks || [];
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        // Only return published tracks to the public
+        const publishedTracks = db.tracks.filter((t: Track) => t.status === 'published');
+        res.status(200).json(publishedTracks);
+    } catch (error) {
+        console.error('Error fetching tracks:', error);
+        res.status(500).json({ error: 'Failed to fetch tracks.' });
+    }
+});
 
-        // Filter by status if the query parameter is provided
-        if (status && typeof status === 'string' && ['pending', 'approved', 'rejected', 'published'].includes(status)) {
-            tracks = tracks.filter(track => track.status === status);
-        }
+// --- New Endpoints for Landing Page ---
+
+// Get the top-voted published track for each genre
+app.get('/tracks/top-by-genre', async (req: Request, res: Response) => {
+    try {
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const publishedTracks = db.tracks.filter((t: Track) => t.status === 'published');
         
-        // Return a consistent object shape
-        res.json({ tracks });
+        const topTracksByGenre: { [genre: string]: Track } = {};
+
+        publishedTracks.forEach((track: Track) => {
+            if (!topTracksByGenre[track.genre] || track.votes > topTracksByGenre[track.genre].votes) {
+                topTracksByGenre[track.genre] = track;
+            }
+        });
+
+        res.status(200).json(topTracksByGenre);
     } catch (error) {
-        console.error('Error reading submissions from database:', error);
-        res.status(500).json({ error: 'Failed to retrieve submissions.' });
+        console.error('Error fetching top tracks by genre:', error);
+        res.status(500).json({ error: 'Failed to fetch top tracks by genre.' });
     }
 });
 
-// Update submission status (approve/reject)
-app.patch('/submissions/:id', async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    if (!status || !['approved', 'rejected'].includes(status)) {
-        return res.status(400).json({ error: 'Invalid status provided.' });
-    }
-
+// Get the single overall top-voted track
+app.get('/tracks/overall-winner', async (req: Request, res: Response) => {
     try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        const submissionIndex = db.tracks.findIndex(s => s.id === id);
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const publishedTracks = db.tracks.filter((t: Track) => t.status === 'published');
 
-        if (submissionIndex === -1) {
+        if (publishedTracks.length === 0) {
+            return res.status(200).json(null); // No winner yet
+        }
+
+        const overallWinner = publishedTracks.reduce((winner: Track, currentTrack: Track) => {
+            return currentTrack.votes > winner.votes ? currentTrack : winner;
+        });
+
+        res.status(200).json(overallWinner);
+    } catch (error) {
+        console.error('Error fetching overall winner:', error);
+        res.status(500).json({ error: 'Failed to fetch overall winner.' });
+    }
+});
+
+
+// Get top 50 tracks for a specific genre
+app.get('/genre/:genreName', async (req: Request, res: Response) => {
+    try {
+        const { genreName } = req.params;
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+
+        const genreTracks = db.tracks
+            .filter((t: Track) => t.status === 'published' && t.genre.toLowerCase() === genreName.toLowerCase())
+            .sort((a: Track, b: Track) => b.votes - a.votes)
+            .slice(0, 50);
+        
+        res.status(200).json(genreTracks);
+    } catch (error) {
+        console.error(`Error fetching tracks for genre ${req.params.genreName}:`, error);
+        res.status(500).json({ error: 'Failed to fetch genre tracks.' });
+    }
+});
+
+// Endpoint for sharing a track
+app.post('/share', async (req: Request, res: Response) => {
+    try {
+        const { trackId, userId, platform, proofUrl } = req.body;
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const track = db.tracks.find((t: Track) => t.id === trackId);
+
+        if (!track) {
             return res.status(404).json({ error: 'Track not found.' });
         }
 
-        db.tracks[submissionIndex].status = status;
+        const newShare: Share = {
+            id: uuidv4(),
+            trackId,
+            userId,
+            platform,
+            proofUrl,
+            status: 'pending',
+            weekNumber: track.weekNumber,
+        };
+
+        db.shares.push(newShare);
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-        
-        res.status(200).json(db.tracks[submissionIndex]);
+
+        res.status(201).json({ message: 'Share submitted for verification.', share: newShare });
     } catch (error) {
-        console.error('Error updating submission status:', error);
-        res.status(500).json({ error: 'Failed to update submission status.' });
+        console.error('Error submitting share:', error);
+        res.status(500).json({ error: 'Failed to submit share.' });
     }
 });
 
-// Sync on-chain data after batch publishing
-app.post('/submissions/sync-onchain', async (req: Request, res: Response) => {
-    const { tracks: syncedTracks } = req.body;
-
-    if (!Array.isArray(syncedTracks) || syncedTracks.length === 0) {
-        return res.status(400).json({ error: 'Invalid or empty tracks array provided.' });
-    }
-
+// Endpoint for voting on a track
+app.post('/vote', async (req: Request, res: Response) => {
     try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
+        const { trackId, voterAddress } = req.body;
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
 
-        let updatedCount = 0;
-
-        for (const syncedTrack of syncedTracks) {
-            const { videoUrl, onChainTrackId } = syncedTrack;
-            if (!videoUrl || !onChainTrackId) continue;
-
-            // Find the track that was approved and matches the videoUrl
-            const trackIndex = db.tracks.findIndex(t => t.videoUrl === videoUrl && t.status === 'approved');
-
-            if (trackIndex !== -1) {
-                db.tracks[trackIndex].status = 'published';
-                db.tracks[trackIndex].onChainTrackId = onChainTrackId.toString(); 
-                updatedCount++;
-            }
+        const track: Track | undefined = db.tracks.find((t: Track) => t.id === trackId);
+        if (!track || track.status !== 'published') {
+            return res.status(400).json({ error: 'You can only vote on published tracks.' });
         }
 
-        if (updatedCount > 0) {
-            await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-            res.status(200).json({ message: `Successfully synced ${updatedCount} tracks.` });
-        } else {
-            res.status(404).json({ message: 'No matching approved tracks found to sync.' });
-        }
-    } catch (error) {
-        console.error('Error syncing on-chain data:', error);
-        res.status(500).json({ error: 'Failed to sync on-chain data.' });
-    }
-});
-
-// New endpoint to get all approved tracks formatted for manual publishing
-app.get('/submissions/approved-for-publishing', async (req: Request, res: Response) => {
-    try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        const approvedTracks = db.tracks.filter(track => track.status === 'approved');
-
-        if (approvedTracks.length === 0) {
-            return res.status(404).json({ message: 'No approved tracks ready for publishing.' });
+        if (isVotingPeriodOverForWeek(track.weekNumber)) {
+             return res.status(400).json({ error: 'The voting period for this track is over.' });
         }
 
-        const formattedTracks = approvedTracks.map(track => {
-            return {
-                id: track.id,
-                artistName: track.artistName,
-                trackTitle: track.trackTitle,
-                genre: track.genre,
-                videoUrl: track.videoUrl,
-                coverImageUrl: track.coverImageUrl,
-                artistWallet: track.artistWallet,
-            };
-        });
-
-        res.status(200).json({ tracks: formattedTracks });
-    } catch (error) {
-        console.error('Error fetching approved tracks:', error);
-        res.status(500).json({ error: 'Failed to retrieve approved tracks for publishing.' });
-    }
-});
-
-// Delete a submission
-app.delete('/submissions/:id', async (req: Request, res: Response) => {
-    const { id } = req.params;
-
-    try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        const newSubmissions = db.tracks.filter(s => s.id !== id);
-
-        if (newSubmissions.length === db.tracks.length) {
-            return res.status(404).json({ error: 'Track not found.' });
-        }
-
-        db.tracks = newSubmissions;
-        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-        
-        res.status(200).json({ message: 'Track deleted successfully.' });
-    } catch (error) {
-        console.error('Error deleting submission:', error);
-        res.status(500).json({ error: 'Failed to delete submission.' });
-    }
-});
-
-// --- Share Endpoints ---
-
-// Endpoint to get all shares grouped by track
-app.get('/shares-by-track', async (req: Request, res: Response) => {
-    try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        
-        const sharesByOnChainTrackId: { [onChainTrackId: string]: Share[] } = {};
-        
-        // Create a map from DB track ID to on-chain track ID for quick lookup
-        const trackIdMap = new Map<string, string>();
-        db.tracks.forEach(track => {
-            if (track.id && track.onChainTrackId) {
-                trackIdMap.set(track.id, track.onChainTrackId);
-            }
-        });
-
-        for (const share of db.shares) {
-            // Find the on-chain ID for the track that was shared
-            const onChainTrackId = trackIdMap.get(share.trackId);
-            if (onChainTrackId) {
-                if (!sharesByOnChainTrackId[onChainTrackId]) {
-                    sharesByOnChainTrackId[onChainTrackId] = [];
-                }
-                sharesByOnChainTrackId[onChainTrackId].push(share);
-            }
-        }
-
-        res.json(sharesByOnChainTrackId);
-    } catch (error) {
-        console.error('Error reading shares from database:', error);
-        res.status(500).json({ error: 'Failed to retrieve shares.' });
-    }
-});
-
-// Submit a proof of share
-app.post('/shares', async (req: Request, res: Response) => {
-    const { walletAddress, trackId } = req.body;
-    if (!walletAddress || !trackId) {
-        return res.status(400).json({ error: 'walletAddress and trackId are required.' });
-    }
-    
-    const newShare: Share = {
-        id: uuidv4(),
-        walletAddress,
-        trackId,
-        sharedAt: new Date().toISOString()
-    };
-
-    const dbData = await fs.readFile(dbPath, 'utf-8');
-    const db: Database = JSON.parse(dbData);
-    
-    db.shares.push(newShare);
-    
-    await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-
-    res.status(201).json({ message: 'Share recorded successfully!', share: newShare });
-});
-
-// --- Vote Endpoints ---
-
-// Record a new vote (gasless)
-app.post('/votes', async (req: Request, res: Response) => {
-    const { onChainTrackId } = req.body;
-    const voterIdentifier = req.ip; // Use IP address to identify voter
-
-    if (!onChainTrackId) {
-        return res.status(400).json({ error: 'Track ID is required.' });
-    }
-    
-    if (!voterIdentifier) {
-        return res.status(400).json({ error: 'Could not identify voter. Please try again.' });
-    }
-
-    try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-
-        // Check if the same IP has already voted for this specific track
-        const alreadyVotedForTrack = db.votes.some(
-            vote => vote.voterIdentifier === voterIdentifier && vote.onChainTrackId === onChainTrackId
-        );
-        if (alreadyVotedForTrack) {
-            return res.status(409).json({ error: 'You have already voted for this track.' });
-        }
-        
-        // BUG FIX: Implement one vote per user per week across all tracks
-        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const hasVotedRecently = db.votes.some(
-            vote => vote.voterIdentifier === voterIdentifier && new Date(vote.votedAt) > sevenDaysAgo
-        );
-
-        if (hasVotedRecently) {
-            return res.status(403).json({ error: 'You can only vote once per week.' });
-        }
-
-        // Check if the track exists and is published
-        const trackExists = db.tracks.some(t => t.onChainTrackId === onChainTrackId && t.status === 'published');
-        if (!trackExists) {
-            return res.status(404).json({ error: 'Track not found or not open for voting.' });
+        // Basic check to prevent double voting from the same address for the same track
+        const existingVote = db.votes.find((v: Vote) => v.trackId === trackId && v.voterAddress === voterAddress);
+        if (existingVote) {
+            return res.status(400).json({ error: 'You have already voted for this track.' });
         }
         
         const newVote: Vote = {
             id: uuidv4(),
-            onChainTrackId,
-            voterIdentifier,
-            votedAt: new Date().toISOString(),
-            status: 'unprocessed'
+            trackId,
+            voterAddress,
+            timestamp: Date.now(),
+            status: 'unprocessed',
+            weekNumber: track.weekNumber,
         };
-
+        
         db.votes.push(newVote);
+        track.votes += 1; // Also increment the vote count on the track itself
+        
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
-        res.status(201).json({ message: 'Your vote has been recorded successfully!' });
-
+        res.status(201).json({ message: 'Vote recorded successfully.', vote: newVote });
     } catch (error) {
         console.error('Error recording vote:', error);
         res.status(500).json({ error: 'Failed to record vote.' });
     }
 });
 
-// Get the tally of unprocessed votes for the admin page
-app.get('/votes/unprocessed-count', async (req: Request, res: Response) => {
+// --- ADMIN ENDPOINTS ---
+
+// Get all submissions (pending, approved, rejected) for admin view
+app.get('/admin/submissions', async (req: Request, res: Response) => {
     try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        const unprocessedVotes = db.votes.filter(v => v.status === 'unprocessed');
-        res.status(200).json({ count: unprocessedVotes.length });
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        res.status(200).json(db.tracks);
     } catch (error) {
-        console.error('Error getting unprocessed vote count:', error);
-        res.status(500).json({ error: 'Failed to get unprocessed vote count.' });
+        console.error('Error fetching submissions:', error);
+        res.status(500).json({ error: 'Failed to fetch submissions.' });
     }
 });
 
-// Tally votes and prepare them for the admin
-app.get('/votes/tally', async (req: Request, res: Response) => {
+// Approve a submission
+app.post('/admin/approve/:id', async (req: Request, res: Response) => {
     try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
+        const { id } = req.params;
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const track = db.tracks.find((t: Track) => t.id === id);
+        if (track) {
+            track.status = 'approved';
+            await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+            res.status(200).json({ message: 'Track approved.', track });
+        } else {
+            res.status(404).json({ error: 'Track not found.' });
+        }
+    } catch (error) {
+        console.error('Error approving track:', error);
+        res.status(500).json({ error: 'Failed to approve track.' });
+    }
+});
 
-        // BUG FIX: Tally votes that are 'unprocessed'
-        const unprocessedVotes = db.votes.filter(v => v.status === 'unprocessed');
+// Publish all approved submissions for the previous week
+app.post('/admin/publish-weekly-uploads', async (req: Request, res: Response) => {
+    try {
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const currentWeek = getCurrentWeekNumber();
+        const lastWeek = currentWeek - 1;
 
-        if (unprocessedVotes.length === 0) {
-            return res.status(200).json({
-                message: 'No new votes to tally.',
-                tally: {},
-                totalVotes: 0
-            });
+        const tracksToPublish = db.tracks.filter((t: Track) =>
+            t.weekNumber === lastWeek && t.status === 'approved'
+        );
+
+        if (tracksToPublish.length === 0) {
+            return res.status(200).json({ message: 'No approved tracks from last week to publish.' });
         }
 
-        // Group votes by onChainTrackId
-        const tally = unprocessedVotes.reduce((acc, vote) => {
-            acc[vote.onChainTrackId] = (acc[vote.onChainTrackId] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
+        // In a real scenario, here you would call the smart contract's
+        // batchRegisterAndUpload function.
+        // For now, we just update the status.
 
-        res.status(200).json({
-            message: 'Votes tallied successfully.',
-            tally,
-            totalVotes: unprocessedVotes.length
-        });
+        tracksToPublish.forEach((t: Track) => t.status = 'published');
+
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+        res.status(200).json({ message: `Successfully published ${tracksToPublish.length} tracks.` });
+
     } catch (error) {
-        console.error('Error tallying votes:', error);
-        res.status(500).json({ error: 'Failed to tally votes.' });
+        console.error('Error publishing weekly uploads:', error);
+        res.status(500).json({ error: 'Failed to publish weekly uploads.' });
     }
 });
 
-// Mark votes as processed after the admin sends the transaction
-app.post('/votes/mark-tallied', async (req: Request, res: Response) => {
+// Get all shares for admin verification
+app.get('/admin/shares', async (req: Request, res: Response) => {
     try {
-        const dbData = await fs.readFile(dbPath, 'utf-8');
-        const db: Database = JSON.parse(dbData);
-        
-        let talliedCount = 0;
-        db.votes.forEach(vote => {
-            if (vote.status === 'unprocessed') {
-                vote.status = 'tallied';
-                talliedCount++;
-            }
-        });
-
-        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-        res.status(200).json({ message: `${talliedCount} votes marked as tallied.` });
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        res.status(200).json(db.shares);
     } catch (error) {
-        console.error('Error marking votes as tallied:', error);
-        res.status(500).json({ error: 'Failed to mark votes as tallied.' });
+        console.error('Error fetching shares:', error);
+        res.status(500).json({ error: 'Failed to fetch shares.' });
+    }
+});
+
+// Verify a share
+app.post('/admin/verify-share/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const share = db.shares.find((s: Share) => s.id === id);
+
+        if (share) {
+            share.status = 'verified';
+            await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+            res.status(200).json({ message: 'Share verified.', share });
+        } else {
+            res.status(404).json({ error: 'Share not found.' });
+        }
+    } catch (error) {
+        console.error('Error verifying share:', error);
+        res.status(500).json({ error: 'Failed to verify share.' });
     }
 });
 

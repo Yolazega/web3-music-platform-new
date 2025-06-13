@@ -33,6 +33,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2",
+    "serve": "^14.2.4",
     "solc": "^0.8.30",
     "viem": "^2.30.6",
     "vite-tsconfig-paths": "^5.1.4",

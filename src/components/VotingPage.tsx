@@ -13,8 +13,8 @@ const VotingPage: React.FC = () => {
         const fetchPublishedTracks = async () => {
             try {
                 setLoading(true);
-                const response = await api.get('/submissions?status=published');
-                const tracks = response.data?.tracks || [];
+                const response = await api.get('/tracks');
+                const tracks = response.data || [];
                 if (Array.isArray(tracks)) {
                     setPublishedTracks(tracks);
                 } else {
@@ -52,7 +52,7 @@ const VotingPage: React.FC = () => {
             {publishedTracks.length > 0 ? (
                 <Grid container spacing={4}>
                     {publishedTracks.map((track) => (
-                        <Grid item key={track.onChainTrackId || track.id} xs={12} sm={6} md={4}>
+                        <Grid item key={track.id} xs={12} sm={6} md={4}>
                             <TrackCard track={track} />
                         </Grid>
                     ))}

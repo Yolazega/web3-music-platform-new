@@ -38,8 +38,8 @@ const UploadPage: React.FC = () => {
 
     // Create FormData to send files and text to the backend
     const formData = new FormData();
-    formData.append('artistName', artistName);
-    formData.append('trackTitle', trackTitle);
+    formData.append('artist', artistName);
+    formData.append('title', trackTitle);
     formData.append('genre', genre);
     formData.append('artistWallet', artistWallet);
     formData.append('coverImageFile', coverImageFile);

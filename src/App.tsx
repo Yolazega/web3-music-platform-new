@@ -11,7 +11,7 @@ import VotingPage from './components/VotingPage';
 import UploadPage from './components/UploadPage';
 import TokenReward from './components/TokenReward';
 import NFTShop from './components/NFTShop';
-import AdminPage from './components/AdminPage';
+import GenrePage from './components/GenrePage';
 
 function App() {
   return (
@@ -27,7 +27,6 @@ function App() {
                   <Link to="/upload" style={{ marginRight: '15px' }}>Upload</Link>
                   <Link to="/rewards" style={{ marginRight: '15px' }}>Rewards</Link>
                   <Link to="/nftshop" style={{ marginRight: '15px' }}>NFT Shop</Link>
-                  <Link to="/admin" style={{ marginRight: '15px', border: '1px solid grey', padding: '2px 5px' }}>Admin</Link>
                 </div>
                 <ConnectButton />
               </nav>
@@ -39,7 +38,7 @@ function App() {
                   <Route path="/upload" element={<UploadPage />} />
                   <Route path="/rewards" element={<TokenReward />} />
                   <Route path="/nftshop" element={<NFTShop />} />
-                  <Route path="/admin" element={<AdminPage />} />
+                  <Route path="/genre/:genreName" element={<GenrePage />} />
                 </Routes>
               </main>
             </div>

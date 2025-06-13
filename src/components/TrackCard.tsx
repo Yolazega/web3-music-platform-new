@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
 import { Track } from '../types';
-import { useReadContract } from 'wagmi';
-import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from '../config';
 import api from '../services/api';
 import { Card, CardMedia, CardContent, CardActions, Typography, Button, CircularProgress, Link, Box, Alert, Snackbar } from '@mui/material';
 
@@ -12,24 +10,19 @@ interface TrackCardProps {
 const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-
-    const { data: voteCount, isLoading: isVoteCountLoading, refetch: refetchVoteCount } = useReadContract({
-        address: AXEP_VOTING_CONTRACT_ADDRESS,
-        abi: AXEP_VOTING_CONTRACT_ABI,
-        functionName: 'getVoteCount',
-        args: [BigInt(track.onChainTrackId || 0)],
-    });
+    const [voteCount, setVoteCount] = useState<number>(track.votes);
 
     const handleVote = async () => {
-        if (!track.onChainTrackId) {
-            setFeedback({ type: 'error', message: "This track has no on-chain ID." });
-            return;
-        }
         setIsSubmitting(true);
         try {
-            await api.post('/votes', { onChainTrackId: track.onChainTrackId });
+            // The backend now expects the database track ID and the voter's address.
+            // For this public-facing component, we'll assume the backend identifies the voter
+            // via other means (e.g., IP address, session).
+            // We just need to send the track's database ID.
+            await api.post('/vote', { trackId: track.id });
             setFeedback({ type: 'success', message: 'Your vote was recorded successfully!' });
-            // Optionally, we can refetch the vote count after a delay or a certain event
+            // Optimistically update the vote count on the frontend.
+            setVoteCount(currentCount => currentCount + 1);
         } catch (error: any) {
             const errorMessage = error.response?.data?.error || "An unknown error occurred.";
             setFeedback({ type: 'error', message: `Failed to vote: ${errorMessage}` });
@@ -49,17 +42,14 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
                     component="img"
                     height="200"
                     image={track.coverImageUrl}
-                    alt={`Cover for ${track.trackTitle}`}
+                    alt={`Cover for ${track.title}`}
                 />
                 <CardContent sx={{ flexGrow: 1 }}>
                     <Typography gutterBottom variant="h5" component="h2">
-                        {track.trackTitle}
+                        {track.title}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                        By: {track.artistName}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        Genre: {track.genre}
+                        By: {track.artist}
                     </Typography>
                     <Link href={track.videoUrl} target="_blank" rel="noopener noreferrer" sx={{ mt: 1, display: 'block' }}>
                         Watch Video
@@ -77,7 +67,7 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
                     </Button>
                     <Box sx={{ textAlign: 'center', minWidth: '50px' }}>
                         <Typography variant="h6" component="p">
-                            {isVoteCountLoading ? <CircularProgress size={20} /> : voteCount?.toString() || '0'}
+                            {voteCount}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                             Votes
