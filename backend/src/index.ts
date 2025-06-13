@@ -397,6 +397,17 @@ app.get('/admin/shares', async (req: Request, res: Response) => {
     }
 });
 
+// Get all votes for admin view
+app.get('/admin/votes', async (req: Request, res: Response) => {
+    try {
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        res.status(200).json(db.votes);
+    } catch (error) {
+        console.error('Error fetching votes:', error);
+        res.status(500).json({ error: 'Failed to fetch votes.' });
+    }
+});
+
 // Verify a share
 app.post('/admin/verify-share/:id', async (req: Request, res: Response) => {
     try {
