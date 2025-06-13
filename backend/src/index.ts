@@ -127,7 +127,7 @@ const upload = multer({
 app.post('/upload', upload.fields([
     { name: 'coverImageFile', maxCount: 1 },
     { name: 'videoFile', maxCount: 1 },
-]), async (req: any, res: Response) => {
+]) as any, async (req: any, res: Response) => {
     try {
         if (isSubmissionPeriodOver()) {
             return res.status(400).json({ error: 'The submission period for this week is over. Please try again next week.' });
