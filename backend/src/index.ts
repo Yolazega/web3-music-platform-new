@@ -11,7 +11,6 @@ import { exec } from 'child_process';
 import { startOfWeek, differenceInWeeks } from 'date-fns';
 import { getCurrentWeekNumber, isSubmissionPeriodOver, isVotingPeriodOverForWeek } from './time';
 import { uploadToPinata } from './pinata';
-import { registerTracksOnChain } from './blockchain';
 
 dotenv.config();
 
@@ -457,18 +456,20 @@ app.post('/admin/publish-weekly-uploads', async (req: Request, res: Response) =>
     }
 });
 
-// For testing: Publish all approved tracks immediately
-app.post('/admin/publish-all-approved', async (req: Request, res: Response) => {
+// For testing: Get data for publishing all approved tracks
+app.get('/admin/get-publish-data', async (req: Request, res: Response) => {
     try {
         const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
         
-        const tracksToPublish = db.tracks.filter((t: Track) => t.status === 'approved');
+        const tracksToPublish = db.tracks.filter((t: Track) => t.status === 'approved' && !t.onChainId);
 
         if (tracksToPublish.length === 0) {
-            return res.status(200).json({ message: 'No approved tracks to publish.' });
+            return res.status(200).json({ 
+                message: 'No new approved tracks to publish.', 
+                trackData: null 
+            });
         }
         
-        // 1. Prepare data for the smart contract
         const trackData = {
             artistWallets: tracksToPublish.map(t => t.artistWallet),
             artistNames: tracksToPublish.map(t => t.artist),
@@ -478,29 +479,41 @@ app.post('/admin/publish-all-approved', async (req: Request, res: Response) => {
             coverImageUrls: tracksToPublish.map(t => t.coverImageUrl!),
         };
 
-        // 2. Call the blockchain function
-        const { onChainIds } = await registerTracksOnChain(trackData);
+        res.status(200).json({ trackData });
 
-        // 3. Update database with on-chain ID and new status
-        onChainIds.forEach(chainInfo => {
-            // We use videoUrl as the unique key to map back from the event log
-            const track = db.tracks.find(t => t.videoUrl === chainInfo.videoUrl);
+    } catch (error: any) {
+        console.error('Error getting approved tracks data:', error);
+        res.status(500).json({ error: 'Failed to get approved tracks data.', details: error.message });
+    }
+});
+
+app.post('/admin/confirm-publish', async (req: Request, res: Response) => {
+    try {
+        const { successfulTracks } = req.body; // Expecting an array of { videoUrl: string, onChainId: number }
+        
+        if (!successfulTracks || !Array.isArray(successfulTracks)) {
+            return res.status(400).json({ error: 'Invalid payload.' });
+        }
+
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+
+        let updatedCount = 0;
+        successfulTracks.forEach((publishedTrack: { videoUrl: string, onChainId: number }) => {
+            const track = db.tracks.find(t => t.videoUrl === publishedTrack.videoUrl);
             if (track) {
-                track.onChainId = parseInt(chainInfo.onChainId, 10);
+                track.onChainId = publishedTrack.onChainId;
                 track.status = 'published';
+                updatedCount++;
             }
         });
 
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
-        res.status(200).json({ 
-            message: `Successfully published ${tracksToPublish.length} tracks on-chain.`,
-            publishedTracks: onChainIds
-        });
+        res.status(200).json({ message: `Successfully confirmed and updated ${updatedCount} tracks.` });
 
-    } catch (error: any) {
-        console.error('Error publishing all approved tracks:', error);
-        res.status(500).json({ error: 'Failed to publish approved tracks.', details: error.message });
+    } catch (error) {
+        console.error('Error confirming track publication:', error);
+        res.status(500).json({ error: 'Failed to confirm publication.' });
     }
 });
 
