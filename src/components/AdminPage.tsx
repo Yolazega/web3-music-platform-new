@@ -131,8 +131,13 @@ const AdminPage: React.FC = () => {
             fetchAllData(); // Refresh data to show changes
             
         } catch (err: any) {
-            const errorMsg = err.shortMessage || err.message || "An error occurred during publishing.";
-            setSnackbar({ open: true, message: `Error: ${errorMsg}` });
+            // Check for our custom error from the backend first
+            const errorMsg = err.response?.data?.error || err.shortMessage || err.message || "An error occurred during publishing.";
+            const errorDetails = err.response?.data?.details;
+            
+            const displayError = errorDetails ? `${errorMsg} ${errorDetails}` : errorMsg;
+
+            setSnackbar({ open: true, message: `Error: ${displayError}` });
             console.error(err);
         } finally {
             setIsPublishing(false);

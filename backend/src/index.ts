@@ -11,6 +11,7 @@ import { exec } from 'child_process';
 import { startOfWeek, differenceInWeeks } from 'date-fns';
 import { getCurrentWeekNumber, isSubmissionPeriodOver, isVotingPeriodOverForWeek } from './time';
 import { uploadToPinata } from './pinata';
+import { ethers } from 'ethers';
 
 dotenv.config();
 
@@ -468,6 +469,16 @@ app.get('/admin/get-publish-data', async (req: Request, res: Response) => {
                 message: 'No new approved tracks to publish.', 
                 trackData: null 
             });
+        }
+        
+        // --- Address Validation ---
+        for (const track of tracksToPublish) {
+            if (!ethers.isAddress(track.artistWallet)) {
+                return res.status(400).json({
+                    error: `Invalid wallet address for track "${track.title}" (ID: ${track.id}). Please correct it.`,
+                    details: `Address provided: ${track.artistWallet}`
+                });
+            }
         }
         
         const trackData = {
