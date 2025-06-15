@@ -135,9 +135,11 @@ app.post('/upload', upload.fields([
     { name: 'videoFile', maxCount: 1 },
 ]), async (req: any, res: Response) => {
     try {
+        /*
         if (isSubmissionPeriodOver()) {
             return res.status(400).json({ error: 'The submission period for this week is over. Please try again next week.' });
         }
+        */
 
         const { artist, title, artistWallet, genre } = req.body;
         if (!artistWallet || !artistWallet.startsWith('0x')) {
