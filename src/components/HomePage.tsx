@@ -16,7 +16,7 @@ const GenreWinnerCard: React.FC<GenreWinnerCardProps> = ({ genre, track }) => {
             <CardMedia
                 component="img"
                 height="200"
-                image={track.coverImageUrl || 'https://via.placeholder.com/200'}
+                image={track.coverImageUrl || 'https://placehold.co/200'}
                 alt={`Cover for ${track.title}`}
             />
             <CardContent sx={{ flexGrow: 1 }}>

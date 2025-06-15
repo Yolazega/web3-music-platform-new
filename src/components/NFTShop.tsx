@@ -20,7 +20,7 @@ const mockNFTs: MusicNFT[] = [
     name: 'Genesis Track Alpha',
     artist: 'DJ Metabeat',
     priceAXP: '100',
-    imageUrl: 'https://via.placeholder.com/150/FF0000/FFFFFF?Text=NFT1',
+    imageUrl: 'https://placehold.co/150/FF0000/FFFFFF?text=NFT1',
     description: 'The very first exclusive track from DJ Metabeat.'
   },
   {
@@ -28,7 +28,7 @@ const mockNFTs: MusicNFT[] = [
     name: 'Decentralized Dreams',
     artist: 'Satoshi\'s Synth',
     priceAXP: '250',
-    imageUrl: 'https://via.placeholder.com/150/00FF00/FFFFFF?Text=NFT2',
+    imageUrl: 'https://placehold.co/150/00FF00/FFFFFF?text=NFT2',
     description: 'A melodic journey into the world of blockchain.'
   },
   {
@@ -36,7 +36,7 @@ const mockNFTs: MusicNFT[] = [
     name: 'Crypto Funk',
     artist: 'The DAO Groovers',
     priceAXP: '75',
-    imageUrl: 'https://via.placeholder.com/150/0000FF/FFFFFF?Text=NFT3',
+    imageUrl: 'https://placehold.co/150/0000FF/FFFFFF?text=NFT3',
     description: 'Get down with this funky beat, powered by smart contracts.'
   },
 ];
