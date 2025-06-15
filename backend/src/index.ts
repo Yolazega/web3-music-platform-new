@@ -154,22 +154,24 @@ app.post('/upload', upload.fields([
         const videoFile = files['videoFile'][0];
         const coverImageFile = files['coverImageFile'][0];
 
-        // Let's assume you'll handle IPFS upload here or in a separate step
-        // For now, we save paths
+        // Upload files to Pinata and get their IPFS URLs
+        const videoUrl = await uploadToPinata(videoFile);
+        const coverImageUrl = await uploadToPinata(coverImageFile);
+
         const newTrack: Track = {
             id: uuidv4(),
             title: title,
             artist: artist,
             artistWallet,
-            filePath: '',
-            ipfsHash: '', // Will be set after successful IPFS upload
+            filePath: '', // This field is no longer needed
+            ipfsHash: videoUrl.split('/').pop() || '', // Extract hash from URL
             genre: genre,
             status: 'pending',
             votes: 0,
             weekNumber: getCurrentWeekNumber(),
             submittedAt: new Date().toISOString(),
-            coverImageUrl: '',
-            videoUrl: '',
+            coverImageUrl: coverImageUrl,
+            videoUrl: videoUrl,
         };
 
         const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));

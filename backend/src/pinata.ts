@@ -12,47 +12,28 @@ export const uploadToPinata = async (file: Express.Multer.File): Promise<string>
     if (!PINATA_JWT) {
         throw new Error('Pinata JWT is not configured on the server.');
     }
-    if (!file.path) {
-        throw new Error('File path is missing. Ensure multer is using disk storage.');
-    }
 
     const url = `https://api.pinata.cloud/pinning/pinFileToIPFS`;
     const formData = new FormData();
-    const fileStream = fs.createReadStream(file.path);
-
-    formData.append('file', fileStream, {
+    
+    // Use the file buffer directly from memoryStorage
+    formData.append('file', file.buffer, {
         filename: file.originalname,
         contentType: file.mimetype
     });
 
-    try {
-        const response = await axios.post(url, formData, {
-            headers: {
-                ...formData.getHeaders(),
-                'Authorization': `Bearer ${PINATA_JWT}`
-            }
-        });
-
-        const ipfsHash = response.data.IpfsHash;
-        if (!ipfsHash) {
-            throw new Error('IPFS hash not found in Pinata response.');
+    const response = await axios.post(url, formData, {
+        headers: {
+            ...formData.getHeaders(),
+            'Authorization': `Bearer ${PINATA_JWT}`
         }
-        
-        let gatewayUrl = `${IPFS_GATEWAY_URL}${ipfsHash}`;
+    });
 
-        if (file.mimetype.startsWith('video/')) {
-            const originalFilename = encodeURIComponent(file.originalname);
-            gatewayUrl = `${gatewayUrl}?filename=${originalFilename}`;
-        }
-
-        return gatewayUrl;
-    } finally {
-        // Always attempt to clean up the temporary file
-        fileStream.close();
-        fs.unlink(file.path, (err) => {
-            if (err) {
-                console.error(`Failed to delete temporary file: ${file.path}`, err);
-            }
-        });
+    const ipfsHash = response.data.IpfsHash;
+    if (!ipfsHash) {
+        throw new Error('IPFS hash not found in Pinata response.');
     }
+    
+    // We construct the full gateway URL here
+    return `${IPFS_GATEWAY_URL}${ipfsHash}`;
 }; 
