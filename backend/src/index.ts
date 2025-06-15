@@ -159,15 +159,15 @@ app.post('/upload', upload.fields([
             title: title,
             artist: artist,
             artistWallet,
-            filePath: videoFile.path,
+            filePath: '',
             ipfsHash: '', // Will be set after successful IPFS upload
             genre: genre,
             status: 'pending',
             votes: 0,
             weekNumber: getCurrentWeekNumber(),
             submittedAt: new Date().toISOString(),
-            coverImageUrl: coverImageFile.path,
-            videoUrl: videoFile.path,
+            coverImageUrl: '',
+            videoUrl: '',
         };
 
         const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
