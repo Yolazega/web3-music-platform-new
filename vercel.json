@@ -3,5 +3,11 @@
     "env": {
       "VERCEL_FORCE_NO_BUILD_CACHE": "1"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }

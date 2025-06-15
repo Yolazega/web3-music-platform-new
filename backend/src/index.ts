@@ -143,10 +143,15 @@ app.post('/upload', upload.fields([
         */
 
         const { artist, title, artistWallet, genre } = req.body;
-        if (!artistWallet || !artistWallet.startsWith('0x')) {
-            return res.status(400).json({ error: 'A valid artist wallet address is required.' });
+        
+        let checksummedWallet: string;
+        try {
+            // Validate and get the checksummed address
+            checksummedWallet = ethers.getAddress(artistWallet);
+        } catch (e) {
+            return res.status(400).json({ error: 'A valid, checksummed artist wallet address is required.' });
         }
-
+        
         const files = req.files as { [fieldname: string]: Express.Multer.File[] };
         if (!files || !files['videoFile'] || !files['coverImageFile']) {
             return res.status(400).json({ error: 'Cover image and video file are required.' });
@@ -163,7 +168,7 @@ app.post('/upload', upload.fields([
             id: uuidv4(),
             title: title,
             artist: artist,
-            artistWallet,
+            artistWallet: checksummedWallet,
             filePath: '', // This field is no longer needed
             ipfsHash: videoUrl.split('/').pop() || '', // Extract hash from URL
             genre: genre,
@@ -471,9 +476,15 @@ app.get('/admin/get-publish-data', async (req: Request, res: Response) => {
             });
         }
         
-        // --- Address Validation ---
+        const validatedWallets: string[] = [];
+        // --- Address Validation and Checksumming ---
         for (const track of tracksToPublish) {
-            if (!ethers.isAddress(track.artistWallet)) {
+            try {
+                // This validates the address and returns the checksummed version.
+                const checksummedAddress = ethers.getAddress(track.artistWallet);
+                validatedWallets.push(checksummedAddress);
+            } catch (e) {
+                console.error(`Invalid address found for track ${track.id}: ${track.artistWallet}`);
                 return res.status(400).json({
                     error: `Invalid wallet address for track "${track.title}" (ID: ${track.id}). Please correct it.`,
                     details: `Address provided: ${track.artistWallet}`
@@ -482,7 +493,7 @@ app.get('/admin/get-publish-data', async (req: Request, res: Response) => {
         }
         
         const trackData = {
-            artistWallets: tracksToPublish.map(t => t.artistWallet),
+            artistWallets: validatedWallets, // Use the checksummed wallets
             artistNames: tracksToPublish.map(t => t.artist),
             trackTitles: tracksToPublish.map(t => t.title),
             genres: tracksToPublish.map(t => t.genre),
