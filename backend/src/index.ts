@@ -336,6 +336,55 @@ app.post('/vote', async (req: Request, res: Response) => {
     }
 });
 
+// Get a tally of all unprocessed votes, grouped by track
+app.get('/votes/tally', async (req: Request, res: Response) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const unprocessedVotes = db.votes.filter(v => v.status === 'unprocessed');
+
+        if (unprocessedVotes.length === 0) {
+            return res.status(200).json({ trackIds: [], voteCounts: [] });
+        }
+
+        const tally: { [trackId: string]: number } = {};
+        for (const vote of unprocessedVotes) {
+            tally[vote.trackId] = (tally[vote.trackId] || 0) + 1;
+        }
+
+        const trackIds = Object.keys(tally);
+        const voteCounts = Object.values(tally);
+
+        res.status(200).json({ trackIds, voteCounts });
+
+    } catch (error) {
+        console.error('Error tallying votes:', error);
+        res.status(500).json({ error: 'Failed to tally votes.' });
+    }
+});
+
+// Marks all unprocessed votes as processed after successful on-chain transaction
+app.post('/votes/clear', async (req: Request, res: Response) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+
+        let updatedCount = 0;
+        db.votes.forEach(vote => {
+            if (vote.status === 'unprocessed') {
+                vote.status = 'processed';
+                updatedCount++;
+            }
+        });
+
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+
+        res.status(200).json({ message: `Successfully cleared and marked ${updatedCount} votes as processed.` });
+
+    } catch (error) {
+        console.error('Error clearing votes:', error);
+        res.status(500).json({ error: 'Failed to clear votes.' });
+    }
+});
+
 // --- ADMIN ENDPOINTS ---
 
 // Get all submissions (pending, approved, rejected) for admin view
