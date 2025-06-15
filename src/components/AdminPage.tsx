@@ -3,8 +3,10 @@ import api from '../services/api';
 import { Track, Share, Vote } from '../types';
 import {
     Container, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button,
-    CircularProgress, Card, CardContent, Grid, Alert, Box, Typography, Link
+    CircularProgress, Card, CardContent, Grid, Alert, Box, Typography, Link, Snackbar
 } from '@mui/material';
+import { useWriteContract } from 'wagmi';
+import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from '../config';
 
 const AdminPage: React.FC = () => {
     // State variables
@@ -20,6 +22,10 @@ const AdminPage: React.FC = () => {
     const [isApproving, setIsApproving] = useState<Record<string, boolean>>({});
     const [isPublishing, setIsPublishing] = useState<boolean>(false);
     const [isPublishingAll, setIsPublishingAll] = useState<boolean>(false);
+    const [isTallying, setIsTallying] = useState<boolean>(false);
+    const [snackbar, setSnackbar] = useState<{ open: boolean, message: string }>({ open: false, message: '' });
+
+    const { writeContractAsync } = useWriteContract();
 
     const fetchAllData = useCallback(async () => {
         setLoading(true);
@@ -59,7 +65,7 @@ const AdminPage: React.FC = () => {
         totalShares: shares.length,
         totalVotes: votes.length,
         pendingShares: shares.filter(s => s.status === 'pending').length,
-        unprocessedVotes: votes.filter(v => v.status === 'unprocessed').length,
+        unprocessedVotes: votes.filter(v => v.status === 'unprocessed' || v.status === 'tallied').length,
     }), [submissions, shares, votes]);
 
     const handleApprove = async (id: string) => {
@@ -108,6 +114,41 @@ const AdminPage: React.FC = () => {
         }
     };
 
+    const handleTallyVotes = async () => {
+        setIsTallying(true);
+        try {
+            // 1. Get the tally from the backend
+            const tallyRes = await api.get('/votes/tally');
+            const { trackIds, voteCounts } = tallyRes.data;
+
+            if (!trackIds || trackIds.length === 0) {
+                setSnackbar({ open: true, message: 'No unprocessed votes to tally.' });
+                return;
+            }
+
+            // 2. Call the smart contract
+            await writeContractAsync({
+                address: AXEP_VOTING_CONTRACT_ADDRESS,
+                abi: AXEP_VOTING_CONTRACT_ABI,
+                functionName: 'adminBatchVote',
+                args: [trackIds, voteCounts],
+            });
+
+            // 3. Clear the votes from our DB
+            await api.post('/votes/clear');
+            
+            setSnackbar({ open: true, message: 'Votes tallied and submitted to the chain successfully!' });
+            fetchAllData(); // Refresh data
+
+        } catch (err: any) {
+            const errorMsg = err.shortMessage || err.message || "An error occurred during vote tallying.";
+            setSnackbar({ open: true, message: `Error: ${errorMsg}` });
+            console.error(err);
+        } finally {
+            setIsTallying(false);
+        }
+    };
+
     if (loading) return <Container sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Container>;
     if (error) return <Container><Alert severity="error">{error}</Alert></Container>;
 
@@ -130,12 +171,17 @@ const AdminPage: React.FC = () => {
                         </Button>
                     ))}
                 </Box>
-                <Button variant="contained" color="secondary" onClick={handlePublishWeekly} disabled={isPublishing || stats.approved === 0}>
-                    {isPublishing ? <CircularProgress size={24} /> : `Publish ${stats.approved} Approved Tracks`}
-                </Button>
-                <Button variant="contained" color="warning" onClick={handlePublishAll} disabled={isPublishingAll || stats.approved === 0} sx={{ ml: 2 }}>
-                    {isPublishingAll ? <CircularProgress size={24} /> : `Publish All (Test)`}
-                </Button>
+                <div>
+                    <Button variant="contained" color="secondary" onClick={handlePublishWeekly} disabled={isPublishing || stats.approved === 0}>
+                        {isPublishing ? <CircularProgress size={24} /> : `Publish Weekly`}
+                    </Button>
+                    <Button variant="contained" color="warning" onClick={handlePublishAll} disabled={isPublishingAll || stats.approved === 0} sx={{ ml: 2 }}>
+                        {isPublishingAll ? <CircularProgress size={24} /> : `Publish All (Test)`}
+                    </Button>
+                    <Button variant="contained" color="info" onClick={handleTallyVotes} disabled={isTallying || stats.unprocessedVotes === 0} sx={{ ml: 2 }}>
+                        {isTallying ? <CircularProgress size={24} /> : `Tally ${stats.unprocessedVotes} Votes`}
+                    </Button>
+                </div>
             </Box>
 
             <TableContainer component={Paper}>
@@ -181,6 +227,12 @@ const AdminPage: React.FC = () => {
                     </TableBody>
                 </Table>
             </TableContainer>
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={6000}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                message={snackbar.message}
+            />
         </Container>
     );
 };
