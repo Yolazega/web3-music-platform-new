@@ -11,6 +11,7 @@ import { exec } from 'child_process';
 import { startOfWeek, differenceInWeeks } from 'date-fns';
 import { getCurrentWeekNumber, isSubmissionPeriodOver, isVotingPeriodOverForWeek } from './time';
 import { uploadToPinata } from './pinata';
+import { registerTracksOnChain } from './blockchain';
 
 dotenv.config();
 
@@ -346,12 +347,17 @@ app.get('/votes/tally', async (req: Request, res: Response) => {
             return res.status(200).json({ trackIds: [], voteCounts: [] });
         }
 
-        const tally: { [trackId: string]: number } = {};
+        const tally: { [onChainId: number]: number } = {};
         for (const vote of unprocessedVotes) {
-            tally[vote.trackId] = (tally[vote.trackId] || 0) + 1;
+            // Find the track corresponding to the vote
+            const track = db.tracks.find(t => t.id === vote.trackId);
+            // Ensure the track has an onChainId and is published before tallying
+            if (track && track.onChainId && track.status === 'published') {
+                tally[track.onChainId] = (tally[track.onChainId] || 0) + 1;
+            }
         }
 
-        const trackIds = Object.keys(tally);
+        const trackIds = Object.keys(tally).map(id => parseInt(id, 10));
         const voteCounts = Object.values(tally);
 
         res.status(200).json({ trackIds, voteCounts });
@@ -454,7 +460,7 @@ app.post('/admin/publish-weekly-uploads', async (req: Request, res: Response) =>
 // For testing: Publish all approved tracks immediately
 app.post('/admin/publish-all-approved', async (req: Request, res: Response) => {
     try {
-        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
         
         const tracksToPublish = db.tracks.filter((t: Track) => t.status === 'approved');
 
@@ -462,18 +468,39 @@ app.post('/admin/publish-all-approved', async (req: Request, res: Response) => {
             return res.status(200).json({ message: 'No approved tracks to publish.' });
         }
         
-        tracksToPublish.forEach((t: Track) => t.status = 'published');
+        // 1. Prepare data for the smart contract
+        const trackData = {
+            artistWallets: tracksToPublish.map(t => t.artistWallet),
+            artistNames: tracksToPublish.map(t => t.artist),
+            trackTitles: tracksToPublish.map(t => t.title),
+            genres: tracksToPublish.map(t => t.genre),
+            videoUrls: tracksToPublish.map(t => t.videoUrl!),
+            coverImageUrls: tracksToPublish.map(t => t.coverImageUrl!),
+        };
+
+        // 2. Call the blockchain function
+        const { onChainIds } = await registerTracksOnChain(trackData);
+
+        // 3. Update database with on-chain ID and new status
+        onChainIds.forEach(chainInfo => {
+            // We use videoUrl as the unique key to map back from the event log
+            const track = db.tracks.find(t => t.videoUrl === chainInfo.videoUrl);
+            if (track) {
+                track.onChainId = parseInt(chainInfo.onChainId, 10);
+                track.status = 'published';
+            }
+        });
 
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
         res.status(200).json({ 
-            message: `Successfully published ${tracksToPublish.length} tracks for testing.`,
-            publishedTracks: tracksToPublish.map(t => t.id)
+            message: `Successfully published ${tracksToPublish.length} tracks on-chain.`,
+            publishedTracks: onChainIds
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error publishing all approved tracks:', error);
-        res.status(500).json({ error: 'Failed to publish approved tracks.' });
+        res.status(500).json({ error: 'Failed to publish approved tracks.', details: error.message });
     }
 });
 
