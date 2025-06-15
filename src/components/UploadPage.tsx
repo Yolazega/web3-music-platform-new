@@ -45,6 +45,13 @@ const UploadPage: React.FC = () => {
     formData.append('coverImageFile', coverImageFile);
     formData.append('videoFile', videoFile);
 
+    // --- Start Debugging ---
+    console.log("Submitting FormData to /upload:");
+    for (let [key, value] of formData.entries()) {
+        console.log(`${key}:`, value);
+    }
+    // --- End Debugging ---
+
     try {
         const response = await api.post('/upload', formData, {
             headers: {
