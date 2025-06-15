@@ -2,7 +2,11 @@ const path = require('path');
 const fs = require('fs');
 const solc = require('solc');
 
-const contractPath = path.resolve(__dirname, 'src', 'contracts', 'AxepVoting_Simple.sol');
+const contractPath = path.resolve(
+  __dirname,
+  "contracts",
+  "AxepVoting_Simple.sol"
+);
 const source = fs.readFileSync(contractPath, 'utf8');
 
 const input = {

@@ -23,6 +23,11 @@ contract AxepVoting is Ownable {
         uint256 uploadTimestamp;
     }
 
+    struct Share {
+        string url1;
+        string url2;
+    }
+
     // --- State Variables ---
     IERC20 public axpToken;
 
@@ -47,7 +52,7 @@ contract AxepVoting is Ownable {
     mapping(uint256 => uint256) public historicalWinners; // period => winning trackId
 
     uint256 public shareRewardAmount;
-    mapping(uint256 => mapping(address => string)) public proofOfShares;
+    mapping(uint256 => mapping(address => Share)) public proofOfShares;
     mapping(uint256 => mapping(address => bool)) public rewardedShares;
 
     // --- Events ---
@@ -60,7 +65,7 @@ contract AxepVoting is Ownable {
         string videoUrl
     );
     event Voted(uint256 indexed trackId, address indexed voter, uint256 totalVotes);
-    event ShareRecorded(uint256 indexed trackId, address indexed sharer, string shareUrl);
+    event ShareRecorded(uint256 indexed trackId, address indexed sharer, string shareUrl1, string shareUrl2);
     event ShareRewardsDistributed(uint256 indexed trackId, address indexed distributor);
     event VotesTallied(uint256[] trackIds, uint256[] voteCounts);
     event WinnerSelected(uint256 indexed votingPeriod, uint256 indexed trackId, uint256 voteCount);
@@ -122,11 +127,12 @@ contract AxepVoting is Ownable {
         emit VotesTallied(_trackIds, _voteCounts);
     }
     
-    function recordShare(uint256 _trackId, string calldata _shareUrl) external {
+    function recordShare(uint256 _trackId, string calldata _shareUrl1, string calldata _shareUrl2) external {
         require(tracks[_trackId].id != 0, "Track does not exist.");
-        require(bytes(_shareUrl).length > 0, "Share URL cannot be empty.");
-        proofOfShares[_trackId][msg.sender] = _shareUrl;
-        emit ShareRecorded(_trackId, msg.sender, _shareUrl);
+        require(bytes(_shareUrl1).length > 0, "Share URL1 cannot be empty.");
+        require(bytes(_shareUrl2).length > 0, "Share URL2 cannot be empty.");
+        proofOfShares[_trackId][msg.sender] = Share({ url1: _shareUrl1, url2: _shareUrl2 });
+        emit ShareRecorded(_trackId, msg.sender, _shareUrl1, _shareUrl2);
     }
 
     // --- View Functions ---
@@ -262,7 +268,7 @@ contract AxepVoting is Ownable {
 
         for (uint i = 0; i < _recipients.length; i++) {
             address recipient = _recipients[i];
-            if (bytes(proofOfShares[_trackId][recipient]).length > 0 && !rewardedShares[_trackId][recipient]) {
+            if (bytes(proofOfShares[_trackId][recipient].url1).length > 0 && !rewardedShares[_trackId][recipient]) {
                 rewardedShares[_trackId][recipient] = true;
                 axpToken.transfer(recipient, rewardAmount);
             }

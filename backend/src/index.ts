@@ -96,11 +96,17 @@ app.use(cors({
   origin: function (origin, callback) {
     // allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
+    
+    // Allow the main domain and any vercel subdomains
+    const isAllowed = allowedOrigins.some(allowedOrigin => origin.startsWith(allowedOrigin)) || 
+                      origin.endsWith('.vercel.app');
+
+    if (isAllowed) {
+      callback(null, true);
+    } else {
       const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+      callback(new Error(msg));
     }
-    return callback(null, true);
   },
   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -127,7 +133,7 @@ const upload = multer({
 app.post('/upload', upload.fields([
     { name: 'coverImageFile', maxCount: 1 },
     { name: 'videoFile', maxCount: 1 },
-]) as any, async (req: any, res: Response) => {
+]), async (req: any, res: Response) => {
     try {
         if (isSubmissionPeriodOver()) {
             return res.status(400).json({ error: 'The submission period for this week is over. Please try again next week.' });
@@ -363,6 +369,10 @@ app.post('/admin/publish-weekly-uploads', async (req: Request, res: Response) =>
         const currentWeek = getCurrentWeekNumber();
         const lastWeek = currentWeek - 1;
 
+        if (lastWeek <= 0) {
+            return res.status(400).json({ error: 'Not enough weeks have passed to publish.' });
+        }
+
         const tracksToPublish = db.tracks.filter((t: Track) =>
             t.weekNumber === lastWeek && t.status === 'approved'
         );
@@ -397,17 +407,6 @@ app.get('/admin/shares', async (req: Request, res: Response) => {
     }
 });
 
-// Get all votes for admin view
-app.get('/admin/votes', async (req: Request, res: Response) => {
-    try {
-        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-        res.status(200).json(db.votes);
-    } catch (error) {
-        console.error('Error fetching votes:', error);
-        res.status(500).json({ error: 'Failed to fetch votes.' });
-    }
-});
-
 // Verify a share
 app.post('/admin/verify-share/:id', async (req: Request, res: Response) => {
     try {
@@ -430,15 +429,10 @@ app.post('/admin/verify-share/:id', async (req: Request, res: Response) => {
 
 // --- Server Initialization ---
 const startServer = async () => {
-    try {
-        await initializeDatabase();
-        app.listen(port, () => {
-            console.log(`Backend server is running on http://localhost:${port}`);
-        });
-    } catch (error) {
-        console.error("Failed to start server:", error);
-        process.exit(1);
-    }
+    await initializeDatabase();
+    app.listen(port, () => {
+        console.log(`Backend server is running on http://localhost:${port}`);
+    });
 };
 
 startServer();
