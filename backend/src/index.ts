@@ -479,6 +479,11 @@ app.get('/admin/get-publish-data', async (req: Request, res: Response) => {
         const validatedWallets: string[] = [];
         // --- Address Validation and Checksumming ---
         for (const track of tracksToPublish) {
+            if (!track.artistWallet) {
+                return res.status(400).json({
+                    error: `Track "${track.title}" (ID: ${track.id}) is missing a wallet address. Please correct it.`
+                });
+            }
             try {
                 // This validates the address and returns the checksummed version.
                 const checksummedAddress = ethers.getAddress(track.artistWallet);
