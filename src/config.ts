@@ -2,6 +2,10 @@ export const AXEP_VOTING_CONTRACT_ADDRESS = '0x9A9f2CC2634e356223250169527926109
 export const AXP_TOKEN_CONTRACT_ADDRESS = 'YOUR_AXP_TOKEN_CONTRACT_ADDRESS';
 export const AMOY_CHAIN_ID = '0x13882';
 
+export const AMOY_RPC_URL = 'https://rpc-amoy.polygon.technology/';
+export const AXP_TOKEN_DECIMALS = 18;
+export const IPFS_GATEWAY_URL = 'https://gateway.pinata.cloud/ipfs/';
+
 export const AXEP_VOTING_CONTRACT_ABI = [
   {
     "inputs": [
