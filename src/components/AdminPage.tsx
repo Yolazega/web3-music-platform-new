@@ -19,6 +19,7 @@ const AdminPage: React.FC = () => {
     // New state for button loading
     const [isApproving, setIsApproving] = useState<Record<string, boolean>>({});
     const [isPublishing, setIsPublishing] = useState<boolean>(false);
+    const [isPublishingAll, setIsPublishingAll] = useState<boolean>(false);
 
     const fetchAllData = useCallback(async () => {
         setLoading(true);
@@ -90,6 +91,23 @@ const AdminPage: React.FC = () => {
         }
     };
 
+    const handlePublishAll = async () => {
+        if (!window.confirm("Are you sure you want to publish ALL approved uploads immediately? This is for testing and will make them live.")) {
+            return;
+        }
+        setIsPublishingAll(true);
+        try {
+            const res = await api.post('/admin/publish-all-approved');
+            alert(res.data.message);
+            fetchAllData();
+        } catch (err: any) {
+            alert(err.response?.data?.error || "An error occurred during publishing.");
+            console.error(err);
+        } finally {
+            setIsPublishingAll(false);
+        }
+    };
+
     if (loading) return <Container sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Container>;
     if (error) return <Container><Alert severity="error">{error}</Alert></Container>;
 
@@ -114,6 +132,9 @@ const AdminPage: React.FC = () => {
                 </Box>
                 <Button variant="contained" color="secondary" onClick={handlePublishWeekly} disabled={isPublishing || stats.approved === 0}>
                     {isPublishing ? <CircularProgress size={24} /> : `Publish ${stats.approved} Approved Tracks`}
+                </Button>
+                <Button variant="contained" color="warning" onClick={handlePublishAll} disabled={isPublishingAll || stats.approved === 0} sx={{ ml: 2 }}>
+                    {isPublishingAll ? <CircularProgress size={24} /> : `Publish All (Test)`}
                 </Button>
             </Box>
 

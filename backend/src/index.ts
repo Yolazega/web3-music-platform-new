@@ -398,6 +398,32 @@ app.post('/admin/publish-weekly-uploads', async (req: Request, res: Response) =>
     }
 });
 
+// For testing: Publish all approved tracks immediately
+app.post('/admin/publish-all-approved', async (req: Request, res: Response) => {
+    try {
+        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        
+        const tracksToPublish = db.tracks.filter((t: Track) => t.status === 'approved');
+
+        if (tracksToPublish.length === 0) {
+            return res.status(200).json({ message: 'No approved tracks to publish.' });
+        }
+        
+        tracksToPublish.forEach((t: Track) => t.status = 'published');
+
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+
+        res.status(200).json({ 
+            message: `Successfully published ${tracksToPublish.length} tracks for testing.`,
+            publishedTracks: tracksToPublish.map(t => t.id)
+        });
+
+    } catch (error) {
+        console.error('Error publishing all approved tracks:', error);
+        res.status(500).json({ error: 'Failed to publish approved tracks.' });
+    }
+});
+
 // Get all shares for admin verification
 app.get('/admin/shares', async (req: Request, res: Response) => {
     try {
