@@ -113,7 +113,7 @@ const AdminPage: React.FC = () => {
 
     return (
         <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-            <Typography variant="h4" gutterBottom>Admin Dashboard</Typography>
+            <Typography variant="h4" gutterBottom>Admin Dashboard v2</Typography>
 
             <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} sm={6} md={3}><Card><CardContent><Typography>Pending Submissions</Typography><Typography variant="h5">{stats.pending}</Typography></CardContent></Card></Grid>
