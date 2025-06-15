@@ -62,7 +62,8 @@ contract AxepVoting is Ownable {
         uint256 indexed artistId,
         string title,
         string genre,
-        string videoUrl
+        string videoUrl,
+        string coverImageUrl
     );
     event Voted(uint256 indexed trackId, address indexed voter, uint256 totalVotes);
     event ShareRecorded(uint256 indexed trackId, address indexed sharer, string shareUrl1, string shareUrl2);
@@ -209,7 +210,7 @@ contract AxepVoting is Ownable {
         _trackIdsByGenre[genre].push(trackId);
         allTrackIds.push(trackId);
 
-        emit TrackUploaded(trackId, artistId, trackTitle, genre, videoUrl);
+        emit TrackUploaded(trackId, artistId, trackTitle, genre, videoUrl, coverImageUrl);
     }
 
     function _isValidGenre(string calldata genreName) internal view returns (bool) {

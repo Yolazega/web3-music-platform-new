@@ -6,8 +6,16 @@ import {
     CircularProgress, Card, CardContent, Grid, Alert, Box, Typography, Link, Snackbar
 } from '@mui/material';
 import { useWriteContract } from 'wagmi';
-import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from '../config';
+import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI, AMOY_RPC_URL } from '../config';
 import { ethers } from 'ethers';
+import { createPublicClient, http, parseLog } from 'viem';
+import { polygonAmoy } from 'viem/chains';
+
+// --- viem Public Client Setup ---
+const publicClient = createPublicClient({
+    chain: polygonAmoy,
+    transport: http(AMOY_RPC_URL)
+});
 
 const AdminPage: React.FC = () => {
     const [submissions, setSubmissions] = useState<Track[]>([]);
@@ -77,8 +85,9 @@ const AdminPage: React.FC = () => {
             return;
         }
         setIsPublishing(true);
-        setSnackbar({ open: true, message: "Fetching track data..." });
+        setSnackbar({ open: true, message: "1/4: Fetching track data..." });
         try {
+            // 1. Get track data from backend
             const { data } = await api.get('/admin/get-publish-data');
             
             if (!data.trackData) {
@@ -87,8 +96,9 @@ const AdminPage: React.FC = () => {
                 return;
             }
 
-            setSnackbar({ open: true, message: "Please approve the transaction in your wallet..." });
+            setSnackbar({ open: true, message: "2/4: Please approve the transaction in your wallet..." });
 
+            // 2. Call the smart contract
             const hash = await writeContractAsync({
                 address: AXEP_VOTING_CONTRACT_ADDRESS,
                 abi: AXEP_VOTING_CONTRACT_ABI,
@@ -103,18 +113,46 @@ const AdminPage: React.FC = () => {
                 ],
             });
 
-            setSnackbar({ open: true, message: `Transaction sent! Waiting for confirmation... Hash: ${hash}` });
+            setSnackbar({ open: true, message: `3/4: Transaction sent! Waiting for confirmation...` });
+
+            // 3. Get Transaction Receipt and Parse Logs
+            const receipt = await publicClient.waitForTransactionReceipt({ hash });
+
+            const trackUploadedLogs = receipt.logs.map(log => {
+                try {
+                    return parseLog({
+                        abi: AXEP_VOTING_CONTRACT_ABI,
+                        data: log.data,
+                        topics: log.topics,
+                    });
+                } catch {
+                    return null;
+                }
+            }).filter(log => log && log.eventName === 'TrackUploaded');
+
+            const successfulTracks = trackUploadedLogs.map(log => ({
+                onChainId: Number(log.args.trackId),
+                coverImageUrl: log.args.coverImageUrl,
+            }));
+
+            if(successfulTracks.length === 0) {
+                 setSnackbar({ open: true, message: 'Transaction confirmed, but no tracks were published. Please check the transaction on a block explorer.' });
+                 setIsPublishing(false);
+                 return;
+            }
+
+            setSnackbar({ open: true, message: `4/4: Confirmed! Syncing ${successfulTracks.length} tracks with backend...` });
             
-            setSnackbar({ open: true, message: 'Transaction submitted! Please wait a moment for the database to update.' });
-            
-            fetchAllData();
+            // 4. Confirm publication with backend
+            await api.post('/admin/confirm-publish', { successfulTracks });
+
+            setSnackbar({ open: true, message: 'Successfully published and synced all tracks!' });
+            fetchAllData(); // Refresh data
             
         } catch (err: any) {
             const errorMsg = err.response?.data?.error || err.shortMessage || err.message || "An error occurred during publishing.";
             const errorDetails = err.response?.data?.details;
-            
             const displayError = errorDetails ? `${errorMsg} ${errorDetails}` : errorMsg;
-
             setSnackbar({ open: true, message: `Error: ${displayError}` });
             console.error(err);
         } finally {

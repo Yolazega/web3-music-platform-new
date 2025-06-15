@@ -136,11 +136,10 @@ app.post('/upload', upload.fields([
     { name: 'videoFile', maxCount: 1 },
 ]), async (req: any, res: Response) => {
     try {
-        /*
-        if (isSubmissionPeriodOver()) {
+        // Only enforce submission deadlines in production
+        if (process.env.NODE_ENV === 'production' && isSubmissionPeriodOver()) {
             return res.status(400).json({ error: 'The submission period for this week is over. Please try again next week.' });
         }
-        */
 
         const { artist, title, artistWallet, genre } = req.body;
         
@@ -516,7 +515,7 @@ app.get('/admin/get-publish-data', async (req: Request, res: Response) => {
 
 app.post('/admin/confirm-publish', async (req: Request, res: Response) => {
     try {
-        const { successfulTracks } = req.body; // Expecting an array of { videoUrl: string, onChainId: number }
+        const { successfulTracks } = req.body; // Expecting an array of { coverImageUrl: string, onChainId: number }
         
         if (!successfulTracks || !Array.isArray(successfulTracks)) {
             return res.status(400).json({ error: 'Invalid payload.' });
@@ -525,16 +524,18 @@ app.post('/admin/confirm-publish', async (req: Request, res: Response) => {
         const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
 
         let updatedCount = 0;
-        successfulTracks.forEach((publishedTrack: { videoUrl: string, onChainId: number }) => {
-            const track = db.tracks.find(t => t.videoUrl === publishedTrack.videoUrl);
-            if (track) {
+        successfulTracks.forEach((publishedTrack: { coverImageUrl: string, onChainId: number }) => {
+            const track = db.tracks.find(t => t.coverImageUrl === publishedTrack.coverImageUrl);
+            if (track && !track.onChainId) { // Prevent re-processing
                 track.onChainId = publishedTrack.onChainId;
                 track.status = 'published';
                 updatedCount++;
             }
         });
 
-        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+        if (updatedCount > 0) {
+            await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+        }
 
         res.status(200).json({ message: `Successfully confirmed and updated ${updatedCount} tracks.` });
 

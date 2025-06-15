@@ -786,8 +786,8 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/contracts/AxepVoting_Simple.sol": {
-      "lastModificationDate": 1749936295522,
-      "contentHash": "67a727f7e320155f596bfc8b5fd56c90",
+      "lastModificationDate": 1750010189459,
+      "contentHash": "3919a2a2feba3bb63a990df38b7a80ae",
       "sourceName": "contracts/AxepVoting_Simple.sol",
       "solcConfig": {
         "version": "0.8.30",
