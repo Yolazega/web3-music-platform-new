@@ -10,7 +10,6 @@ import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from '../confi
 import { ethers } from 'ethers';
 
 const AdminPage: React.FC = () => {
-    // State variables
     const [submissions, setSubmissions] = useState<Track[]>([]);
     const [shares, setShares] = useState<Share[]>([]);
     const [votes, setVotes] = useState<Vote[]>([]);
@@ -18,8 +17,6 @@ const AdminPage: React.FC = () => {
     const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'published'>('all');
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
-
-    // New state for button loading
     const [isApproving, setIsApproving] = useState<Record<string, boolean>>({});
     const [isPublishing, setIsPublishing] = useState<boolean>(false);
     const [isTallying, setIsTallying] = useState<boolean>(false);
@@ -31,22 +28,20 @@ const AdminPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            // Fetch all admin data in parallel
             const [submissionsRes, sharesRes, votesRes] = await Promise.all([
                 api.get('/admin/submissions'),
                 api.get('/admin/shares'),
-                api.get('/admin/votes') // Assumes a new /admin/votes endpoint exists
+                api.get('/admin/votes')
             ]);
-            
             setSubmissions(submissionsRes.data.sort((a: Track, b: Track) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
             setShares(sharesRes.data);
             setVotes(votesRes.data);
-
-        } catch (err) { 
-            setError("Failed to load admin data. Please try again."); 
+        } catch (err) {
+            setError("Failed to load admin data. Please try again.");
             console.error(err);
-        } 
-        finally { setLoading(false); }
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
     useEffect(() => {
@@ -54,7 +49,6 @@ const AdminPage: React.FC = () => {
     }, [fetchAllData]);
 
     useEffect(() => {
-        // This handles the filtering of the main submissions table
         setFilteredSubmissions(filter === 'all' ? submissions : submissions.filter(s => s.status === filter));
     }, [filter, submissions]);
     
@@ -62,8 +56,6 @@ const AdminPage: React.FC = () => {
         pending: submissions.filter(s => s.status === 'pending').length,
         approved: submissions.filter(s => s.status === 'approved' && !s.onChainId).length,
         published: submissions.filter(s => s.status === 'published').length,
-        totalShares: shares.length,
-        totalVotes: votes.length,
         pendingShares: shares.filter(s => s.status === 'pending').length,
         unprocessedVotes: votes.filter(v => v.status === 'unprocessed').length,
     }), [submissions, shares, votes]);
@@ -87,7 +79,6 @@ const AdminPage: React.FC = () => {
         setIsPublishing(true);
         setSnackbar({ open: true, message: "Fetching track data..." });
         try {
-            // 1. Get track data from backend
             const { data } = await api.get('/admin/get-publish-data');
             
             if (!data.trackData) {
@@ -98,7 +89,6 @@ const AdminPage: React.FC = () => {
 
             setSnackbar({ open: true, message: "Please approve the transaction in your wallet..." });
 
-            // 2. Call the smart contract
             const hash = await writeContractAsync({
                 address: AXEP_VOTING_CONTRACT_ADDRESS,
                 abi: AXEP_VOTING_CONTRACT_ABI,
@@ -115,23 +105,11 @@ const AdminPage: React.FC = () => {
 
             setSnackbar({ open: true, message: `Transaction sent! Waiting for confirmation... Hash: ${hash}` });
             
-            // 3. (Implicitly handled by wagmi/viem) Wait for transaction to be mined
-            // We need a real public client to get the receipt, wagmi doesn't expose it easily.
-            // Let's assume for now that if writeContractAsync resolves, it's submitted.
-            // A robust solution would use a viem public client to getTransactionReceipt.
-            // For now, we will just refetch data and assume the best.
-            // The proper way to get the on-chain IDs requires parsing logs from the receipt.
-
             setSnackbar({ open: true, message: 'Transaction submitted! Please wait a moment for the database to update.' });
-            // This is a temporary workaround. We are not confirming the publish on the backend
-            // because we can't easily get the on-chain IDs from the frontend without more setup.
-            // The tracks will be on-chain, but our backend won't know their on-chain ID yet.
-            // This is a limitation we accept for now to get the core flow working.
             
-            fetchAllData(); // Refresh data to show changes
+            fetchAllData();
             
         } catch (err: any) {
-            // Check for our custom error from the backend first
             const errorMsg = err.response?.data?.error || err.shortMessage || err.message || "An error occurred during publishing.";
             const errorDetails = err.response?.data?.details;
             
@@ -148,7 +126,6 @@ const AdminPage: React.FC = () => {
         setIsTallying(true);
         setSnackbar({ open: true, message: "Fetching vote tally..." });
         try {
-            // 1. Get the tally from the backend
             const tallyRes = await api.get('/votes/tally');
             const { trackIds, voteCounts } = tallyRes.data;
 
@@ -160,7 +137,6 @@ const AdminPage: React.FC = () => {
 
             setSnackbar({ open: true, message: "Please approve the transaction in your wallet..." });
 
-            // 2. Call the smart contract
             const hash = await writeContractAsync({
                 address: AXEP_VOTING_CONTRACT_ADDRESS,
                 abi: AXEP_VOTING_CONTRACT_ABI,
@@ -170,11 +146,10 @@ const AdminPage: React.FC = () => {
 
             setSnackbar({ open: true, message: `Transaction sent! Hash: ${hash}. Clearing votes...` });
 
-            // 3. Clear the votes from our DB
             await api.post('/votes/clear');
             
             setSnackbar({ open: true, message: 'Votes tallied and submitted to the chain successfully!' });
-            fetchAllData(); // Refresh data
+            fetchAllData();
 
         } catch (err: any) {
             const errorMsg = err.shortMessage || err.message || "An error occurred during vote tallying.";
@@ -222,7 +197,7 @@ const AdminPage: React.FC = () => {
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {filteredSubmissions.map((track) => (
+                        {submissions.map((track) => (
                             <TableRow key={track.id}>
                                 <TableCell>{track.artist}<br/><Typography variant="caption">{track.artistWallet}</Typography></TableCell>
                                 <TableCell>{track.title}</TableCell>
@@ -261,4 +236,4 @@ const AdminPage: React.FC = () => {
     );
 };
 
-export default AdminPage; 
+export default AdminPage;
