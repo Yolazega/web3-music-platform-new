@@ -1,106 +1,152 @@
 import React, { useState } from 'react';
-import { Box, Typography, TextField, Button, CircularProgress, Alert, IconButton } from '@mui/material';
-import { Twitter, Facebook, Instagram } from '@mui/icons-material'; // Using placeholder icons
-import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from '../config';
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { Box, Typography, TextField, Button, CircularProgress, Alert, IconButton, Stack } from '@mui/material';
+import TwitterIcon from '@mui/icons-material/Twitter';
+import FacebookIcon from '@mui/icons-material/Facebook';
+import InstagramIcon from '@mui/icons-material/Instagram';
+import { useWriteContract, useAccount } from 'wagmi';
 import { Track } from '../types';
+import api from '../services/api';
 
-// Define WinnerCardProps using the imported Track type
 interface WinnerCardProps {
-    track: Track;
-    artist: { name: string }; // Keep this simple for now
+    winner: Track;
 }
 
-const WinnerCard: React.FC<WinnerCardProps> = ({ track, artist }) => {
-    const [shareUrl1, setShareUrl1] = useState('');
-    const [shareUrl2, setShareUrl2] = useState('');
-    const [showSubmitForm, setShowSubmitForm] = useState(false);
-
+const WinnerCard: React.FC<WinnerCardProps> = ({ winner }) => {
+    const { address } = useAccount();
     const { data: hash, error, isPending, writeContract } = useWriteContract();
-    const { isLoading: isConfirming, isSuccess: isConfirmed } = 
-        useWaitForTransactionReceipt({ 
-          hash, 
-        })
+    const [showSubmitForm, setShowSubmitForm] = useState(false);
+    const [shareUrls, setShareUrls] = useState({ url1: '', url2: '' });
+
+    const handleShareClick = (platform: 'X' | 'Facebook' | 'Instagram') => {
+        const trackUrl = window.location.origin; // URL of the Axep site
+        const shareText = `Check out the winning track "${winner.title}" by ${winner.artist} on Axep! #AxepVoting`;
+        const encodedUrl = encodeURIComponent(trackUrl);
+        const encodedText = encodeURIComponent(shareText);
+
+        let shareLink = '';
+
+        if (platform === 'X') {
+            shareLink = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
+        } else if (platform === 'Facebook') {
+            shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+        }
+
+        if (shareLink) {
+            window.open(shareLink, '_blank', 'noopener,noreferrer');
+        }
+
+        setShowSubmitForm(true);
+    };
+
+    const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setShareUrls(prev => ({ ...prev, [name]: value }));
+    };
 
     const handleSubmitProof = async () => {
-        if (!shareUrl1 || !shareUrl2) {
-            alert("Please enter both share URLs.");
+        if (!address || !winner.onChainId) {
+            alert('Please connect your wallet or ensure winner data is available.');
             return;
         }
-        // Here, you would call your backend API to submit both links for verification
-        // Example: await api.post('/shares', { trackId: track.id, shareUrl1, shareUrl2 });
-        // For now, just call the contract's recordShare with the first link (for demo)
-        writeContract({
-            address: AXEP_VOTING_CONTRACT_ADDRESS as `0x${string}`,
-            abi: AXEP_VOTING_CONTRACT_ABI,
-            functionName: 'recordShare',
-            args: [BigInt(track.id), shareUrl1, shareUrl2],
-        });
+
+        try {
+            await api.post('/shares/record', {
+                userWallet: address,
+                trackId: winner.onChainId,
+                shareUrl1: shareUrls.url1,
+                shareUrl2: shareUrls.url2,
+            });
+            alert('Your submission has been recorded! It will be reviewed for rewards.');
+            setShowSubmitForm(false);
+        } catch (error) {
+            console.error('Failed to record share submission:', error);
+            alert('There was an error submitting your proof. Please try again.');
+        }
     };
 
     return (
-        <Box sx={{ 
-            width: '100%', 
-            maxWidth: '800px', 
-            background: 'linear-gradient(145deg, #2c2c2c, #1a1a1a)',
-            borderRadius: '15px', 
-            p: 4, 
+        <Box sx={{
+            background: 'linear-gradient(45deg, #FF8E53, #FFD700)',
+            p: 4,
+            borderRadius: 4,
             color: 'white',
-            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.37)'
+            textAlign: 'center',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+            maxWidth: 600,
+            mx: 'auto',
+            mt: 4
         }}>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1, textAlign: 'center' }}>Current Main Winner</Typography>
-            <Typography variant="h6" sx={{ textAlign: 'center' }}>{artist.name} - "{track.title}"</Typography>
-            <Typography sx={{ textAlign: 'center' }}>Votes: {track.votes.toLocaleString()}</Typography>
+            <Typography variant="h4" gutterBottom>
+                🏆 Weekly Winner! 🏆
+            </Typography>
+            <Typography variant="h5" component="div">
+                {winner.title}
+            </Typography>
+            <Typography variant="h6" sx={{ mb: 3 }}>
+                by {winner.artist}
+            </Typography>
 
-            <Box sx={{ mt: 4 }}>
-                <Typography variant="h6" component="p" sx={{ mb: 2, textAlign: 'center' }}>
-                    Share this track and earn AXP tokens!
+            {/* Share Section */}
+            <Box sx={{ border: '2px solid white', borderRadius: 2, p: 2, mb: 2 }}>
+                <Typography variant="body1" sx={{ textAlign: 'center', mb: 2 }}>
+                    Share the winning track to earn rewards!
                 </Typography>
-                
-                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 2 }}>
-                    <IconButton onClick={() => setShowSubmitForm(true)} sx={{ color: 'white' }}><Twitter /></IconButton>
-                    <IconButton onClick={() => setShowSubmitForm(true)} sx={{ color: 'white' }}><Facebook /></IconButton>
-                    <IconButton onClick={() => setShowSubmitForm(true)} sx={{ color: 'white' }}><Instagram /></IconButton>
-                </Box>
-                
-                <Typography variant="body2" sx={{ textAlign: 'center', mb: 2, color: '#aaa' }}>
-                    After sharing, click an icon and paste the URLs of your two posts below. Both posts must include the hashtag #AxepVoting.
-                </Typography>
-
-                {showSubmitForm && (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-                        <TextField
-                            label="Share URL 1"
-                            variant="filled"
-                            value={shareUrl1}
-                            onChange={(e) => setShareUrl1(e.target.value)}
-                            fullWidth
-                            sx={{ input: { color: 'white' }, label: { color: 'gray' } }}
-                        />
-                        <TextField
-                            label="Share URL 2"
-                            variant="filled"
-                            value={shareUrl2}
-                            onChange={(e) => setShareUrl2(e.target.value)}
-                            fullWidth
-                            sx={{ input: { color: 'white' }, label: { color: 'gray' } }}
-                        />
-                        <Button
-                            onClick={handleSubmitProof}
-                            disabled={isPending || isConfirming}
-                            variant="contained"
-                            color="primary"
-                        >
-                            {isPending ? 'Check Wallet...' : isConfirming ? 'Confirming...' : 'Submit Proof'}
-                        </Button>
-                    </Box>
-                )}
-                
-                {isConfirmed && <Alert severity="success" sx={{ mt: 2 }}>Proof submitted successfully!</Alert>}
-                {error && <Alert severity="error" sx={{ mt: 2 }}>Error: {error.message}</Alert>}
+                <Stack direction="row" spacing={2} justifyContent="center">
+                    <IconButton onClick={() => handleShareClick('X')} sx={{ color: 'white' }}>
+                        <TwitterIcon />
+                    </IconButton>
+                    <IconButton onClick={() => handleShareClick('Facebook')} sx={{ color: 'white' }}>
+                        <FacebookIcon />
+                    </IconButton>
+                    <IconButton onClick={() => handleShareClick('Instagram')} sx={{ color: 'white' }}>
+                        <InstagramIcon />
+                    </IconButton>
+                </Stack>
             </Box>
+            
+            <Typography variant="body2" sx={{ textAlign: 'center', mb: 2, color: '#eee' }}>
+                After sharing, click an icon and paste the URLs of your two posts below. Both posts must include the hashtag #AxepVoting.
+            </Typography>
+
+            {showSubmitForm && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
+                    <TextField
+                        label="Share URL 1"
+                        variant="filled"
+                        name="url1"
+                        value={shareUrls.url1}
+                        onChange={handleUrlChange}
+                        fullWidth
+                        sx={{ input: { color: 'black' }, fieldset: { borderColor: 'white' }, '& .MuiFilledInput-root': { backgroundColor: 'rgba(255, 255, 255, 0.9)' } }}
+                    />
+                    <TextField
+                        label="Share URL 2"
+                        variant="filled"
+                        name="url2"
+                        value={shareUrls.url2}
+                        onChange={handleUrlChange}
+                        fullWidth
+                         sx={{ input: { color: 'black' }, fieldset: { borderColor: 'white' }, '& .MuiFilledInput-root': { backgroundColor: 'rgba(255, 255, 255, 0.9)' } }}
+                    />
+                    <Button
+                        variant="contained"
+                        onClick={handleSubmitProof}
+                        disabled={isPending || !shareUrls.url1 || !shareUrls.url2}
+                        sx={{ 
+                            backgroundColor: 'white', 
+                            color: '#FF8E53', 
+                            '&:hover': { backgroundColor: '#f0f0f0' }
+                        }}
+                    >
+                        {isPending ? <CircularProgress size={24} /> : 'Submit Proof'}
+                    </Button>
+                </Box>
+            )}
+
+            {hash && <Alert severity="success" sx={{ mt: 2 }}>Proof submitted successfully! Tx: {hash}</Alert>}
+            {error && <Alert severity="error" sx={{ mt: 2 }}>Error: {error.message}</Alert>}
         </Box>
     );
-}
+};
 
 export default WinnerCard; 
