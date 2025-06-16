@@ -19,7 +19,7 @@ services:
     name: web3-music-frontend
     runtime: static
     buildCommand: "yarn && yarn build"
-    publishDir: "dist"
+    staticPublishPath: "dist"
 
 disks:
   - name: data
