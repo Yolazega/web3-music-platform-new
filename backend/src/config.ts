@@ -1,4 +1,4 @@
-export const AXEP_VOTING_CONTRACT_ADDRESS = '0x3A9B2fF59E0a4467D1407798caD47B61d5C69A2d';
+export const AXEP_VOTING_CONTRACT_ADDRESS = '0x9A9f2CC2634e35622325016952792610998a12AD';
 export const AXP_TOKEN_CONTRACT_ADDRESS = 'YOUR_AXP_TOKEN_CONTRACT_ADDRESS';
 export const AMOY_CHAIN_ID = '0x13882';
 
@@ -165,6 +165,12 @@ export const AXEP_VOTING_CONTRACT_ABI = [
         "indexed": false,
         "internalType": "string",
         "name": "videoUrl",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "coverImageUrl",
         "type": "string"
       }
     ],
@@ -335,24 +341,6 @@ export const AXEP_VOTING_CONTRACT_ABI = [
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_trackId",
-        "type": "uint256"
-      },
-      {
-        "internalType": "address[]",
-        "name": "_recipients",
-        "type": "address[]"
-      }
-    ],
-    "name": "batchDistributeShareRewards",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -805,19 +793,6 @@ export const AXEP_VOTING_CONTRACT_ABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "_newAmount",
-        "type": "uint256"
-      }
-    ],
-    "name": "setShareRewardAmount",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "shareRewardAmount",
     "outputs": [
@@ -922,13 +897,6 @@ export const AXEP_VOTING_CONTRACT_ABI = [
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "withdraw",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] 

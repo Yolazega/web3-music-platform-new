@@ -8,7 +8,7 @@ import {
 import { useWriteContract } from 'wagmi';
 import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI, AMOY_RPC_URL } from '../config';
 import { ethers } from 'ethers';
-import { createPublicClient, http, parseLog } from 'viem';
+import { createPublicClient, http, parseEventLogs } from 'viem';
 import { polygonAmoy } from 'viem/chains';
 
 // --- viem Public Client Setup ---
@@ -118,20 +118,17 @@ const AdminPage: React.FC = () => {
             // 3. Get Transaction Receipt and Parse Logs
             const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-            const trackUploadedLogs = receipt.logs.map(log => {
-                try {
-                    return parseLog({
-                        abi: AXEP_VOTING_CONTRACT_ABI,
-                        data: log.data,
-                        topics: log.topics,
-                    });
-                } catch {
-                    return null;
-                }
-            }).filter(log => log && log.eventName === 'TrackUploaded');
+            const trackUploadedLogs = parseEventLogs({
+                abi: AXEP_VOTING_CONTRACT_ABI,
+                logs: receipt.logs,
+                eventName: 'TrackUploaded',
+                strict: false, // Make parsing more robust
+            });
 
             const successfulTracks = trackUploadedLogs.map(log => ({
+                // @ts-ignore
                 onChainId: Number(log.args.trackId),
+                // @ts-ignore
                 coverImageUrl: log.args.coverImageUrl,
             }));
 

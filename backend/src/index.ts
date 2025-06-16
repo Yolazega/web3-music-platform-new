@@ -308,11 +308,10 @@ app.post('/vote', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'You can only vote on published tracks.' });
         }
 
-        /*
-        if (isVotingPeriodOverForWeek(track.weekNumber)) {
+        // Only enforce voting deadlines in production
+        if (process.env.NODE_ENV === 'production' && isVotingPeriodOverForWeek(track.weekNumber)) {
              return res.status(400).json({ error: 'The voting period for this track is over.' });
         }
-        */
 
         // Basic check to prevent double voting from the same address for the same track
         const existingVote = db.votes.find((v: Vote) => v.trackId === trackId && v.voterAddress === voterAddress);
