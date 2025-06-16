@@ -20,7 +20,7 @@ services:
       name: data
       mountPath: /var/data
 
-  - type: static
+  - type: static_site
     name: web3-music-frontend
     branch: main
     buildCommand: "yarn && yarn build"
