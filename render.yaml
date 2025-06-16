@@ -19,3 +19,9 @@ services:
     disk:
       name: data
       mountPath: /var/data/render
+
+  - type: static
+    name: web3-music-frontend
+    branch: main
+    buildCommand: "yarn && yarn build"
+    publishDir: "dist"
