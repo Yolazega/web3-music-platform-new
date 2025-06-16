@@ -18,18 +18,24 @@ const WinnerCard: React.FC<WinnerCardProps> = ({ winner }) => {
     const [shareUrls, setShareUrls] = useState({ url1: '', url2: '' });
 
     const handleShareClick = (platform: 'X' | 'Facebook' | 'Instagram') => {
+        // Instagram has no web share intent, so we handle it separately.
+        if (platform === 'Instagram') {
+            alert("To share on Instagram, please create a post in their mobile app. Afterwards, copy the post's link and paste it in the form below.");
+            setShowSubmitForm(true);
+            return;
+        }
+
         const trackUrl = window.location.origin; // URL of the Axep site
         const shareText = `Check out the winning track "${winner.title}" by ${winner.artist} on Axep! #AxepVoting`;
         const encodedUrl = encodeURIComponent(trackUrl);
-        const encodedText = encodeURIComponent(shareText);
 
         let shareLink = '';
-        let quote = '';
 
         if (platform === 'X') {
+            const encodedText = encodeURIComponent(shareText);
             shareLink = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
         } else if (platform === 'Facebook') {
-            quote = shareText;
+            const quote = shareText;
             shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodeURIComponent(quote)}`;
         }
 
