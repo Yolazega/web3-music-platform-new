@@ -24,11 +24,13 @@ const WinnerCard: React.FC<WinnerCardProps> = ({ winner }) => {
         const encodedText = encodeURIComponent(shareText);
 
         let shareLink = '';
+        let quote = '';
 
         if (platform === 'X') {
             shareLink = `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`;
         } else if (platform === 'Facebook') {
-            shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+            quote = shareText;
+            shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodeURIComponent(quote)}`;
         }
 
         if (shareLink) {
@@ -105,7 +107,7 @@ const WinnerCard: React.FC<WinnerCardProps> = ({ winner }) => {
             </Box>
             
             <Typography variant="body2" sx={{ textAlign: 'center', mb: 2, color: '#eee' }}>
-                After sharing, click an icon and paste the URLs of your two posts below. Both posts must include the hashtag #AxepVoting.
+                After sharing, click the icon again. Then find your post on the social platform, click its timestamp to get the direct URL, and paste it below.
             </Typography>
 
             {showSubmitForm && (
