@@ -13,11 +13,13 @@ import {
     AXP_TOKEN_CONTRACT_ADDRESS,
     AXEP_VOTING_CONTRACT_ADDRESS,
     AXP_TOKEN_DECIMALS,
-    AMOY_RPC_URL
+    AMOY_RPC_URL,
+    AXEP_VOTING_CONTRACT_ABI
 } from '../config';
 import { polygonAmoy } from 'viem/chains';
 import { publicClient } from '../client';
 import { type Track, type Genre } from '../types';
+import { ethers } from "ethers";
 
 export type { Track, Genre };
 
@@ -256,3 +258,6 @@ export const getAxpBalance = async (address: `0x${string}`): Promise<string> => 
         return "0";
     }
 };
+
+// Re-export for convenience elsewhere in the app
+export { AXEP_VOTING_CONTRACT_ABI, AXEP_VOTING_CONTRACT_ADDRESS };

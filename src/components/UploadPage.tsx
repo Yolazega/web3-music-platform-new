@@ -17,7 +17,16 @@ const UploadPage: React.FC = () => {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadSuccess, setUploadSuccess] = useState<boolean>(false);
 
-  const genres = ["Pop", "Soul", "Rock", "Country", "RAP", "Afro / Dancehall", "Electronic", "Instrumental / Other"];
+  const genres = [
+    "Pop", 
+    "Soul", 
+    "Rock", 
+    "Country", 
+    "RAP", 
+    "Afro / Dancehall", 
+    "Electronic", 
+    "Instrumental / Other"
+  ];
   
   const handleSubmit = async () => {
     setFormError(null);

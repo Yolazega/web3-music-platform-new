@@ -83,6 +83,9 @@ contract AxepVoting is Ownable {
         officialGenres.push("Rock");
         officialGenres.push("Country");
         officialGenres.push("RAP");
+        officialGenres.push("Afro / Dancehall");
+        officialGenres.push("Electronic");
+        officialGenres.push("Instrumental / Other");
 
         _nextArtistId = 1;
         _nextTrackId = 1;

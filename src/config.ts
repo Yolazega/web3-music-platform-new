@@ -1,4 +1,6 @@
-export const AXEP_VOTING_CONTRACT_ADDRESS = '0x3A9B2fF59E0a4467D1407798caD47B61d5C69A2d';
+import { sepolia, polygon } from 'wagmi/chains';
+
+export const AXEP_VOTING_CONTRACT_ADDRESS = "0x83072BC70659AB6aCcd0A46C05bF2748F2Cb2D8e";
 export const AXP_TOKEN_CONTRACT_ADDRESS = 'YOUR_AXP_TOKEN_CONTRACT_ADDRESS';
 export const AMOY_CHAIN_ID = '0x13882';
 
@@ -165,6 +167,12 @@ export const AXEP_VOTING_CONTRACT_ABI = [
         "indexed": false,
         "internalType": "string",
         "name": "videoUrl",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "coverImageUrl",
         "type": "string"
       }
     ],
@@ -931,4 +939,4 @@ export const AXEP_VOTING_CONTRACT_ABI = [
     "stateMutability": "nonpayable",
     "type": "function"
   }
-] 
+] as const; 
