@@ -21,3 +21,6 @@ services:
     runtime: static
     buildCommand: "yarn && yarn build"
     staticPublishPath: "dist"
+    rewrites:
+      - source: "/*"
+        destination: "/index.html"
