@@ -443,13 +443,14 @@ app.post('/admin/confirm-publish', async (req: Request, res: Response) => {
     }
 });
 
-// Get all votes for admin view
+// GET: All votes for the admin dashboard.
 app.get('/admin/votes', async (req: Request, res: Response) => {
     try {
-        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        // Ensure votes array exists, return empty array if not
         res.status(200).json(db.votes || []);
     } catch (error) {
-        console.error('Error fetching votes:', error);
+        console.error('Error fetching votes for admin:', error);
         res.status(500).json({ error: 'Failed to fetch votes.' });
     }
 });
@@ -474,7 +475,7 @@ app.post('/admin/verify-share/:id', async (req: Request, res: Response) => {
     }
 });
 
-// New Endpoint: Get all share submissions for admin view
+// GET: All "Proof of Share" submissions for the admin dashboard.
 app.get('/admin/share-submissions', async (req: Request, res: Response) => {
     try {
         const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
