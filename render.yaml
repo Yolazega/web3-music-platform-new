@@ -15,8 +15,9 @@ services:
     disk:
       name: data
       mountPath: /var/data
-  - type: static_site
+  - type: web
     name: web3-music-frontend
+    runtime: static
     buildCommand: "yarn && yarn build"
     publishDir: "dist"
 
