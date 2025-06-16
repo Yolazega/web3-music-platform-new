@@ -52,14 +52,12 @@ const AdminPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const [submissionsRes, sharesRes, votesRes, shareSubmissionsRes] = await Promise.all([
+            const [submissionsRes, votesRes, shareSubmissionsRes] = await Promise.all([
                 api.get('/admin/submissions'),
-                api.get('/admin/shares'),
                 api.get('/admin/votes'),
                 api.get('/admin/share-submissions'),
             ]);
             setSubmissions(submissionsRes.data.sort((a: Track, b: Track) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
-            setShares(sharesRes.data);
             setVotes(votesRes.data);
             setShareSubmissions(shareSubmissionsRes.data);
         } catch (err) {
@@ -82,9 +80,9 @@ const AdminPage: React.FC = () => {
         pending: submissions.filter(s => s.status === 'pending').length,
         approved: submissions.filter(s => s.status === 'approved' && !s.onChainId).length,
         published: submissions.filter(s => s.status === 'published').length,
-        pendingShares: shares.filter(s => s.status === 'pending').length,
+        pendingShares: shareSubmissions.filter(s => s.status === 'pending').length,
         unprocessedVotes: votes.filter(v => v.status === 'unprocessed').length,
-    }), [submissions, shares, votes]);
+    }), [submissions, shareSubmissions, votes]);
 
     const handleApprove = async (id: string) => {
         setIsApproving(prev => ({...prev, [id]: true}));
