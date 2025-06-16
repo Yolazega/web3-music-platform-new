@@ -11,6 +11,20 @@ import { ethers } from 'ethers';
 import { createPublicClient, http, parseEventLogs } from 'viem';
 import { polygonAmoy } from 'viem/chains';
 
+interface ShareSubmission {
+    id: string;
+    userWallet: string;
+    trackId: number;
+    shareUrl1: string;
+    shareUrl2: string;
+    status: 'pending' | 'verified' | 'rejected';
+    submittedAt: string;
+    track: {
+        title: string;
+        artist: string;
+    }
+}
+
 // --- viem Public Client Setup ---
 const publicClient = createPublicClient({
     chain: polygonAmoy,
@@ -21,6 +35,7 @@ const AdminPage: React.FC = () => {
     const [submissions, setSubmissions] = useState<Track[]>([]);
     const [shares, setShares] = useState<Share[]>([]);
     const [votes, setVotes] = useState<Vote[]>([]);
+    const [shareSubmissions, setShareSubmissions] = useState<ShareSubmission[]>([]);
     const [filteredSubmissions, setFilteredSubmissions] = useState<Track[]>([]);
     const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'published'>('all');
     const [loading, setLoading] = useState<boolean>(true);
@@ -28,6 +43,7 @@ const AdminPage: React.FC = () => {
     const [isApproving, setIsApproving] = useState<Record<string, boolean>>({});
     const [isPublishing, setIsPublishing] = useState<boolean>(false);
     const [isTallying, setIsTallying] = useState<boolean>(false);
+    const [isUpdatingShare, setIsUpdatingShare] = useState<Record<string, boolean>>({});
     const [snackbar, setSnackbar] = useState<{ open: boolean, message: string }>({ open: false, message: '' });
 
     const { writeContractAsync } = useWriteContract();
@@ -36,14 +52,16 @@ const AdminPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const [submissionsRes, sharesRes, votesRes] = await Promise.all([
+            const [submissionsRes, sharesRes, votesRes, shareSubmissionsRes] = await Promise.all([
                 api.get('/admin/submissions'),
                 api.get('/admin/shares'),
-                api.get('/admin/votes')
+                api.get('/admin/votes'),
+                api.get('/admin/share-submissions'),
             ]);
             setSubmissions(submissionsRes.data.sort((a: Track, b: Track) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
             setShares(sharesRes.data);
             setVotes(votesRes.data);
+            setShareSubmissions(shareSubmissionsRes.data);
         } catch (err) {
             setError("Failed to load admin data. Please try again.");
             console.error(err);
@@ -77,6 +95,21 @@ const AdminPage: React.FC = () => {
             alert(`Error approving submission ${id}.`); 
         } finally {
             setIsApproving(prev => ({...prev, [id]: false}));
+        }
+    };
+
+    const handleUpdateShareStatus = async (id: string, status: 'verified' | 'rejected') => {
+        setIsUpdatingShare(prev => ({ ...prev, [id]: true }));
+        try {
+            await api.post(`/admin/shares/${status}/${id}`);
+            setSnackbar({ open: true, message: `Share status updated to ${status}.` });
+            // Refresh the data to show the new status
+            setShareSubmissions(prev => prev.map(s => s.id === id ? { ...s, status } : s));
+        } catch (err) {
+            console.error(`Error updating share ${id}`, err);
+            setSnackbar({ open: true, message: `Failed to update share status.` });
+        } finally {
+            setIsUpdatingShare(prev => ({ ...prev, [id]: false }));
         }
     };
     
@@ -218,6 +251,7 @@ const AdminPage: React.FC = () => {
                 </Button>
             </Box>
 
+            <Typography variant="h5" sx={{mt: 4, mb: 2}}>Track Submissions</Typography>
             <TableContainer component={Paper}>
                 <Table sx={{ minWidth: 650 }} aria-label="submissions table">
                     <TableHead>
@@ -261,6 +295,60 @@ const AdminPage: React.FC = () => {
                     </TableBody>
                 </Table>
             </TableContainer>
+
+            <Typography variant="h5" sx={{mt: 4, mb: 2}}>Proof of Share Submissions</Typography>
+            <TableContainer component={Paper}>
+                <Table sx={{ minWidth: 650 }} aria-label="proof of shares table">
+                    <TableHead>
+                        <TableRow>
+                            <TableCell>User</TableCell>
+                            <TableCell>Track</TableCell>
+                            <TableCell>Share URL 1</TableCell>
+                            <TableCell>Share URL 2</TableCell>
+                            <TableCell>Submitted</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Actions</TableCell>
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {shareSubmissions.map((share) => (
+                            <TableRow key={share.id}>
+                                <TableCell><Typography variant="caption">{share.userWallet}</Typography></TableCell>
+                                <TableCell>{share.track.title} - {share.track.artist}</TableCell>
+                                <TableCell><Link href={share.shareUrl1} target="_blank" rel="noopener noreferrer">Link 1</Link></TableCell>
+                                <TableCell><Link href={share.shareUrl2} target="_blank" rel="noopener noreferrer">Link 2</Link></TableCell>
+                                <TableCell>{new Date(share.submittedAt).toLocaleString()}</TableCell>
+                                <TableCell>{share.status}</TableCell>
+                                <TableCell>
+                                    {share.status === 'pending' && (
+                                        <Box sx={{display: 'flex', gap: 1}}>
+                                            <Button 
+                                                size="small" 
+                                                variant="contained" 
+                                                color="success" 
+                                                onClick={() => handleUpdateShareStatus(share.id, 'verified')}
+                                                disabled={isUpdatingShare[share.id]}
+                                            >
+                                                {isUpdatingShare[share.id] ? <CircularProgress size={20}/> : "Verify"}
+                                            </Button>
+                                            <Button 
+                                                size="small" 
+                                                variant="contained" 
+                                                color="error"
+                                                onClick={() => handleUpdateShareStatus(share.id, 'rejected')}
+                                                disabled={isUpdatingShare[share.id]}
+                                            >
+                                                {isUpdatingShare[share.id] ? <CircularProgress size={20}/> : "Reject"}
+                                            </Button>
+                                        </Box>
+                                    )}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </TableContainer>
+
             <Snackbar
                 open={snackbar.open}
                 autoHideDuration={6000}

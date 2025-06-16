@@ -41,14 +41,15 @@ interface Track {
     submittedAt: string;
 }
 
+// This is the definitive structure for a "Proof of Share" submission.
 interface Share {
     id: string;
-    trackId: string;
-    userId: string;
-    platform: string;
-    proofUrl: string;
-    status: 'pending' | 'verified' | 'rejected';
-    weekNumber: number;
+    trackId: number;       // The on-chain ID of the track shared.
+    userWallet: string;    // The wallet of the user who shared.
+    shareUrl1: string;     // The first proof URL (e.g., Twitter post).
+    shareUrl2: string;     // The second proof URL (e.g., Facebook post).
+    status: 'pending' | 'verified' | 'rejected'; // The verification status.
+    submittedAt: string;   // The ISO timestamp of the submission.
 }
 
 interface Vote {
@@ -62,7 +63,7 @@ interface Vote {
 
 interface Database {
     tracks: Track[];
-    shares: Share[];
+    shares: Share[]; // <-- Now uses the correct, single Share interface
     votes: Vote[];
 }
 
@@ -79,9 +80,8 @@ const initializeDatabase = async () => {
         console.log('Database file not found. Creating a new one.');
         await fs.writeFile(dbPath, JSON.stringify({
             tracks: [],
-            shares: [],
+            shares: [], // Initialize with an empty shares array
             votes: [],
-            users: []
         }, null, 2));
     }
 };
@@ -268,130 +268,41 @@ app.get('/genre/:genreName', async (req: Request, res: Response) => {
 });
 
 // Endpoint for sharing a track
-app.post('/share', async (req: Request, res: Response) => {
+app.post('/shares/record', async (req: Request, res: Response) => {
     try {
-        const { trackId, userId, platform, proofUrl } = req.body;
-        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-        const track = db.tracks.find((t: Track) => t.id === trackId);
+        const { userWallet, trackId, shareUrl1, shareUrl2 } = req.body;
 
-        if (!track) {
-            return res.status(404).json({ error: 'Track not found.' });
+        // Make sure we have all the required data
+        if (!userWallet || trackId === undefined || !shareUrl1 || !shareUrl2) {
+            return res.status(400).json({ error: 'Missing required fields for recording share.' });
+        }
+
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+
+        // Check if the track exists and is published
+        const trackExists = db.tracks.some((t: Track) => t.onChainId === trackId && t.status === 'published');
+        if (!trackExists) {
+            return res.status(404).json({ error: 'The specified track does not exist or is not the current winner.' });
         }
 
         const newShare: Share = {
             id: uuidv4(),
+            userWallet: ethers.getAddress(userWallet), // Sanitize wallet address
             trackId,
-            userId,
-            platform,
-            proofUrl,
+            shareUrl1,
+            shareUrl2,
             status: 'pending',
-            weekNumber: track.weekNumber,
+            submittedAt: new Date().toISOString()
         };
 
         db.shares.push(newShare);
-        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-
-        res.status(201).json({ message: 'Share submitted for verification.', share: newShare });
-    } catch (error) {
-        console.error('Error submitting share:', error);
-        res.status(500).json({ error: 'Failed to submit share.' });
-    }
-});
-
-// Endpoint for voting on a track
-app.post('/vote', async (req: Request, res: Response) => {
-    try {
-        const { trackId, voterAddress } = req.body;
-        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-
-        const track: Track | undefined = db.tracks.find((t: Track) => t.id === trackId);
-        if (!track || track.status !== 'published') {
-            return res.status(400).json({ error: 'You can only vote on published tracks.' });
-        }
-
-        // Only enforce voting deadlines in production
-        if (process.env.NODE_ENV === 'production' && isVotingPeriodOverForWeek(track.weekNumber)) {
-             return res.status(400).json({ error: 'The voting period for this track is over.' });
-        }
-
-        // Basic check to prevent double voting from the same address for the same track
-        const existingVote = db.votes.find((v: Vote) => v.trackId === trackId && v.voterAddress === voterAddress);
-        if (existingVote) {
-            return res.status(400).json({ error: 'You have already voted for this track.' });
-        }
-        
-        const newVote: Vote = {
-            id: uuidv4(),
-            trackId,
-            voterAddress,
-            timestamp: Date.now(),
-            status: 'unprocessed',
-            weekNumber: track.weekNumber,
-        };
-        
-        db.votes.push(newVote);
-        track.votes += 1; // Also increment the vote count on the track itself
-        
-        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-
-        res.status(201).json({ message: 'Vote recorded successfully.', vote: newVote });
-    } catch (error) {
-        console.error('Error recording vote:', error);
-        res.status(500).json({ error: 'Failed to record vote.' });
-    }
-});
-
-// Get a tally of all unprocessed votes, grouped by track
-app.get('/votes/tally', async (req: Request, res: Response) => {
-    try {
-        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-        const unprocessedVotes = db.votes.filter(v => v.status === 'unprocessed');
-
-        if (unprocessedVotes.length === 0) {
-            return res.status(200).json({ trackIds: [], voteCounts: [] });
-        }
-
-        const tally: { [onChainId: number]: number } = {};
-        for (const vote of unprocessedVotes) {
-            // Find the track corresponding to the vote
-            const track = db.tracks.find(t => t.id === vote.trackId);
-            // Ensure the track has an onChainId and is published before tallying
-            if (track && track.onChainId && track.status === 'published') {
-                tally[track.onChainId] = (tally[track.onChainId] || 0) + 1;
-            }
-        }
-
-        const trackIds = Object.keys(tally).map(id => parseInt(id, 10));
-        const voteCounts = Object.values(tally);
-
-        res.status(200).json({ trackIds, voteCounts });
-
-    } catch (error) {
-        console.error('Error tallying votes:', error);
-        res.status(500).json({ error: 'Failed to tally votes.' });
-    }
-});
-
-// Marks all unprocessed votes as processed after successful on-chain transaction
-app.post('/votes/clear', async (req: Request, res: Response) => {
-    try {
-        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-
-        let updatedCount = 0;
-        db.votes.forEach(vote => {
-            if (vote.status === 'unprocessed') {
-                vote.status = 'processed';
-                updatedCount++;
-            }
-        });
 
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
-        res.status(200).json({ message: `Successfully cleared and marked ${updatedCount} votes as processed.` });
-
+        res.status(201).json({ message: 'Share recorded successfully, pending verification.' });
     } catch (error) {
-        console.error('Error clearing votes:', error);
-        res.status(500).json({ error: 'Failed to clear votes.' });
+        console.error('Error recording share:', error);
+        res.status(500).json({ error: 'Failed to record share.' });
     }
 });
 
@@ -401,9 +312,9 @@ app.post('/votes/clear', async (req: Request, res: Response) => {
 app.get('/admin/submissions', async (req: Request, res: Response) => {
     try {
         const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-        res.status(200).json(db.tracks);
+        res.status(200).json(db.tracks.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
     } catch (error) {
-        console.error('Error fetching submissions:', error);
+        console.error('Error fetching submissions for admin:', error);
         res.status(500).json({ error: 'Failed to fetch submissions.' });
     }
 });
@@ -414,16 +325,16 @@ app.post('/admin/approve/:id', async (req: Request, res: Response) => {
         const { id } = req.params;
         const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
         const track = db.tracks.find((t: Track) => t.id === id);
-        if (track) {
+        if (track && track.status === 'pending') {
             track.status = 'approved';
             await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
-            res.status(200).json({ message: 'Track approved.', track });
+            res.status(200).json({ message: 'Track approved successfully' });
         } else {
-            res.status(404).json({ error: 'Track not found.' });
+            res.status(404).json({ error: 'Track not found or not in pending state' });
         }
     } catch (error) {
         console.error('Error approving track:', error);
-        res.status(500).json({ error: 'Failed to approve track.' });
+        res.status(500).json({ error: 'Failed to approve track' });
     }
 });
 
@@ -475,34 +386,16 @@ app.get('/admin/get-publish-data', async (req: Request, res: Response) => {
             });
         }
         
-        const validatedWallets: string[] = [];
-        // --- Address Validation and Checksumming ---
-        for (const track of tracksToPublish) {
-            if (!track.artistWallet) {
-                return res.status(400).json({
-                    error: `Track "${track.title}" (ID: ${track.id}) is missing a wallet address. Please correct it.`
-                });
-            }
-            if (!track.videoUrl || !track.coverImageUrl) {
-                return res.status(400).json({
-                    error: `Track "${track.title}" (ID: ${track.id}) is missing a video or cover image URL. Please ensure it was uploaded correctly.`
-                });
-            }
-            try {
-                // This validates the address and returns the checksummed version.
-                const checksummedAddress = ethers.getAddress(track.artistWallet);
-                validatedWallets.push(checksummedAddress);
-            } catch (e) {
-                console.error(`Invalid address found for track ${track.id}: ${track.artistWallet}`);
-                return res.status(400).json({
-                    error: `Invalid wallet address for track "${track.title}" (ID: ${track.id}). Please correct it.`,
-                    details: `Address provided: ${track.artistWallet}`
-                });
-            }
+        const validationErrors = tracksToPublish
+            .map(t => (!t.videoUrl || !t.coverImageUrl) ? `Track "${t.title}" is missing a video or cover URL.` : null)
+            .filter(Boolean);
+
+        if (validationErrors.length > 0) {
+            return res.status(400).json({ error: "Validation failed for some tracks.", details: validationErrors.join(' ') });
         }
         
         const trackData = {
-            artistWallets: validatedWallets, // Use the checksummed wallets
+            artistWallets: tracksToPublish.map(t => t.artistWallet),
             artistNames: tracksToPublish.map(t => t.artist),
             trackTitles: tracksToPublish.map(t => t.title),
             genres: tracksToPublish.map(t => t.genre),
@@ -550,17 +443,6 @@ app.post('/admin/confirm-publish', async (req: Request, res: Response) => {
     }
 });
 
-// Get all shares for admin verification
-app.get('/admin/shares', async (req: Request, res: Response) => {
-    try {
-        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-        res.status(200).json(db.shares);
-    } catch (error) {
-        console.error('Error fetching shares:', error);
-        res.status(500).json({ error: 'Failed to fetch shares.' });
-    }
-});
-
 // Get all votes for admin view
 app.get('/admin/votes', async (req: Request, res: Response) => {
     try {
@@ -589,6 +471,68 @@ app.post('/admin/verify-share/:id', async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Error verifying share:', error);
         res.status(500).json({ error: 'Failed to verify share.' });
+    }
+});
+
+// New Endpoint: Get all share submissions for admin view
+app.get('/admin/share-submissions', async (req: Request, res: Response) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        
+        // We need to return not just the share, but also info about the track being shared.
+        const populatedShares = db.shares.map(share => {
+            const track = db.tracks.find(t => t.onChainId === share.trackId);
+            return {
+                ...share,
+                track: track ? { title: track.title, artist: track.artist } : { title: 'Unknown Track', artist: 'Unknown Artist' }
+            };
+        }).sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+
+
+        res.status(200).json(populatedShares);
+    } catch (error) {
+        console.error('Error fetching share submissions for admin:', error);
+        res.status(500).json({ error: 'Failed to fetch share submissions.' });
+    }
+});
+
+// POST: Verify a "Proof of Share" submission.
+app.post('/admin/shares/verify/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const share = db.shares.find(s => s.id === id);
+
+        if (share) {
+            share.status = 'verified';
+            await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+            res.status(200).json({ message: 'Share verified successfully.' });
+        } else {
+            res.status(404).json({ error: 'Share not found.' });
+        }
+    } catch (error) {
+        console.error('Error verifying share:', error);
+        res.status(500).json({ error: 'Failed to verify share.' });
+    }
+});
+
+// POST: Reject a "Proof of Share" submission.
+app.post('/admin/shares/reject/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const share = db.shares.find(s => s.id === id);
+
+        if (share) {
+            share.status = 'rejected';
+            await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+            res.status(200).json({ message: 'Share rejected successfully.' });
+        } else {
+            res.status(404).json({ error: 'Share not found.' });
+        }
+    } catch (error) {
+        console.error('Error rejecting share:', error);
+        res.status(500).json({ error: 'Failed to reject share.' });
     }
 });
 
