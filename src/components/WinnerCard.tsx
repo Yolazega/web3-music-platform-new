@@ -64,7 +64,7 @@ const WinnerCard: React.FC<WinnerCardProps> = ({ track, artist }) => {
                 </Box>
                 
                 <Typography variant="body2" sx={{ textAlign: 'center', mb: 2, color: '#aaa' }}>
-                    After sharing, click an icon and paste the URLs of your two posts below.
+                    After sharing, click an icon and paste the URLs of your two posts below. Both posts must include the hashtag #AxepVoting.
                 </Typography>
 
                 {showSubmitForm && (
