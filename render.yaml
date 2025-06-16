@@ -1,7 +1,3 @@
-disks:
-  - name: data
-    mountPath: /var/data
-    sizeGB: 1
 services:
   - type: web
     name: web3-music-backend
@@ -19,9 +15,12 @@ services:
     disk:
       name: data
       mountPath: /var/data
-
   - type: static_site
     name: web3-music-frontend
-    branch: main
     buildCommand: "yarn && yarn build"
     publishDir: "dist"
+
+disks:
+  - name: data
+    mountPath: /var/data
+    sizeGB: 1
