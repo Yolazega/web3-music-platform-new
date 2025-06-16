@@ -90,6 +90,7 @@ const initializeDatabase = async () => {
 // Configure CORS to allow requests from your specific frontend URL
 const allowedOrigins = [
     'http://localhost:5173', // For local development
+    'https://web3-music-frontend.onrender.com', // Our new Render frontend
     'https://web3-music-platform-new.vercel.app' // For deployed frontend
 ];
 
