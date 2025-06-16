@@ -15,10 +15,10 @@ services:
       - key: NODE_VERSION
         value: 18.17.1
       - key: RENDER_DISK_MOUNT_PATH
-        value: /var/data/render
+        value: /var/data
     disk:
       name: data
-      mountPath: /var/data/render
+      mountPath: /var/data
 
   - type: static
     name: web3-music-frontend
