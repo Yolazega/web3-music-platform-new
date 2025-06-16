@@ -19,8 +19,9 @@ services:
   - type: web
     name: web3-music-frontend
     runtime: static
+    rootDir: .
     buildCommand: "yarn && yarn build"
-    staticPublishPath: "dist"
+    staticPublishPath: dist
     rewrites:
       - source: "/*"
         destination: "/index.html"
