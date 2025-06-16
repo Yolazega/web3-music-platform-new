@@ -15,13 +15,9 @@ services:
     disk:
       name: data
       mountPath: /var/data
+      sizeGB: 1
   - type: web
     name: web3-music-frontend
     runtime: static
     buildCommand: "yarn && yarn build"
     staticPublishPath: "dist"
-
-disks:
-  - name: data
-    mountPath: /var/data
-    sizeGB: 1
