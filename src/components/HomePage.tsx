@@ -116,7 +116,7 @@ const HomePage: React.FC = () => {
                  <Grid item xs={12} md={6}>
                     <Box sx={{ p: 4, backgroundColor: '#000', color: '#fff', minHeight: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
                          {mainWinner ? (
-                            <WinnerCard track={mainWinner} artist={{ name: mainWinner.artist }} />
+                            <WinnerCard winner={mainWinner} />
                         ) : !isLoading && (
                             <Typography variant="h6">No overall winner yet.</Typography>
                         )}
