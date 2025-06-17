@@ -32,8 +32,6 @@ services:
         value: "github"
       - key: OAUTH2_PROXY_UPSTREAMS
         value: "file:///app/#/"
-      - key: OAUTH2_PROXY_HTTP_ADDRESS
-        value: "0.0.0.0:10000"
       - key: OAUTH2_PROXY_EMAIL_DOMAINS
         value: "*"
       - key: OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE
