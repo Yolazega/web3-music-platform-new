@@ -24,5 +24,4 @@ services:
     dockerCommand: "/bin/oauth2-proxy --config /etc/oauth2-proxy/oauth2-proxy.cfg"
     envVars:
       - fromGroup: axep-secrets
-      - key: OAUTH2_PROXY_COOKIE_SECRET
-        generateValue: true 
+ 
