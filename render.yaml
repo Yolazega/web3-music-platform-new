@@ -23,5 +23,10 @@ services:
     dockerfilePath: ./Dockerfile
     dockerCommand: "/bin/oauth2-proxy --config /etc/oauth2-proxy/oauth2-proxy.cfg"
     envVars:
-      - fromGroup: axep-secrets
+      - key: OAUTH2_PROXY_CLIENT_ID
+        fromGroup: axep-secrets
+      - key: OAUTH2_PROXY_CLIENT_SECRET
+        fromGroup: axep-secrets
+      - key: OAUTH2_PROXY_COOKIE_SECRET
+        fromGroup: axep-secrets
  
