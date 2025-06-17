@@ -29,9 +29,8 @@ COPY email_list.txt /site_config/
 # Copy the built static files from the 'builder' stage
 COPY --from=builder /app/dist /app/
 
-# Copy our new startup script and make it executable
+# Copy our new startup script
 COPY start.sh /
-RUN chmod +x /start.sh
 
 # Expose the port the proxy will run on (Render will map this)
 EXPOSE 10000
