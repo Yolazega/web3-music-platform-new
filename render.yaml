@@ -24,13 +24,9 @@ services:
     # The command is now set via ENTRYPOINT in the Dockerfile
     # to force Render to stop using a cached command.
     envVars:
-      # Sensitive values from the environment group
-      - key: OAUTH2_PROXY_CLIENT_ID
-        fromGroup: axep-secrets
-      - key: OAUTH2_PROXY_CLIENT_SECRET
-        fromGroup: axep-secrets
-      - key: OAUTH2_PROXY_COOKIE_SECRET
-        fromGroup: axep-secrets
+      # Pull all variables (CLIENT_ID, CLIENT_SECRET, COOKIE_SECRET)
+      # from the specified group. This is the correct syntax.
+      - fromGroup: axep-secrets
       # Non-sensitive values set directly
       - key: OAUTH2_PROXY_PROVIDER
         value: "github"
