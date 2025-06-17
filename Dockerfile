@@ -1,6 +1,6 @@
 # Stage 1: The build environment
 # This stage installs dependencies and builds the React app
-FROM node:18-alpine as builder
+FROM node:20-alpine as builder
 
 # Set the working directory
 WORKDIR /app
