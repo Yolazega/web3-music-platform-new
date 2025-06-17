@@ -1,22 +1,39 @@
-# Use the official oauth2-proxy image as our base
-FROM quay.io/oauth2-proxy/oauth2-proxy
+# Stage 1: The build environment
+# This stage installs dependencies and builds the React app
+FROM node:18-alpine as builder
 
-# Copy our email whitelist into the container
+# Set the working directory
+WORKDIR /app
+
+# Copy package.json and yarn.lock to leverage Docker cache
+COPY package*.json ./
+COPY yarn.lock ./
+
+# Install dependencies
+RUN yarn install
+
+# Copy the rest of the application source code
+COPY . .
+
+# Build the application, creating the /app/dist directory
+RUN yarn build
+
+# Stage 2: The production environment
+# This stage sets up the secure proxy and serves the built app
+FROM quay.io/oauth2-proxy/oauth2-proxy:latest
+
+# Copy the email whitelist and the proxy config template
+# Note: We will generate the final config on startup
 COPY email_list.txt /site_config/
 
-# Copy the built static files from our frontend project into the container
-# The 'dist' directory contains the output of 'yarn build'
-COPY dist /app/
+# Copy the built static files from the 'builder' stage
+COPY --from=builder /app/dist /app/
+
+# Copy the configuration file that the proxy needs
+COPY oauth2-proxy.cfg /etc/oauth2-proxy/oauth2-proxy.cfg
+
+# Expose the port the proxy will run on
+EXPOSE 80
 
 # This is the command that starts the proxy
-# It tells the proxy to use GitHub, protect the files in /app/,
-# and check emails against our list.
-ENTRYPOINT ["/bin/oauth2-proxy", \
-            "--provider", "github", \
-            "--upstream", "file:///app/#/", \
-            "--authenticated-emails-file", "/site_config/email_list.txt", \
-            "--scope=user:email", \
-            "--cookie-expire=24h", \
-            "--session-cookie-minimal=true", \
-            "--skip-provider-button=true", \
-            "--http-address", ":10000"] 
+CMD ["/bin/oauth2-proxy", "--config", "/etc/oauth2-proxy/oauth2-proxy.cfg"] 
