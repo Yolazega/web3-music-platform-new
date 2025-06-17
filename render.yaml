@@ -1,1 +1,29 @@
- 
+services:
+  - type: web
+    name: web3-music-backend
+    runtime: node
+    plan: starter
+    rootDir: ./backend
+    buildCommand: "yarn install && yarn build"
+    startCommand: "yarn start"
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 18.17.1
+      - key: DATABASE_URL
+        value: "file:/var/data/db.json"
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+  - type: web
+    name: web3-music-frontend
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    dockerCommand: "/bin/oauth2-proxy --config /etc/oauth2-proxy/oauth2-proxy.cfg"
+    envVars:
+      - key: OAUTH2_PROXY_CLIENT_ID
+      - key: OAUTH2_PROXY_CLIENT_SECRET
+      - key: OAUTH2_PROXY_COOKIE_SECRET
+        generateValue: true 
