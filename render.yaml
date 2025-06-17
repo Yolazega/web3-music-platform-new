@@ -21,7 +21,9 @@ services:
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
-    # The CMD in the Dockerfile is now just '/bin/oauth2-proxy'
+    # Explicitly set the command to override any cached values.
+    # This tells the proxy to launch and read its config from env vars.
+    dockerCommand: "/bin/oauth2-proxy"
     # All config is provided by the env vars below
     envVars:
       # Sensitive values from the environment group
