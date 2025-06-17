@@ -21,10 +21,8 @@ services:
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
-    # Explicitly set the command to override any cached values.
-    # This tells the proxy to launch and read its config from env vars.
-    dockerCommand: "/bin/oauth2-proxy"
-    # All config is provided by the env vars below
+    # The command is now set via ENTRYPOINT in the Dockerfile
+    # to force Render to stop using a cached command.
     envVars:
       # Sensitive values from the environment group
       - key: OAUTH2_PROXY_CLIENT_ID

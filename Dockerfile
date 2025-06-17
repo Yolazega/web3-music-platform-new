@@ -32,6 +32,7 @@ COPY --from=builder /app/dist /app/
 # Expose the port the proxy will run on
 EXPOSE 10000
 
-# This is the command that starts the proxy.
-# It will automatically pick up all OAUTH2_PROXY_ environment variables.
-CMD ["/bin/oauth2-proxy"] 
+# Use ENTRYPOINT to force Render to use the correct command.
+# This starts the proxy, which will read all its configuration
+# from the environment variables we set in render.yaml.
+ENTRYPOINT ["/bin/oauth2-proxy"] 
