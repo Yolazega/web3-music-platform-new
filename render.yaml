@@ -21,12 +21,31 @@ services:
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
-    dockerCommand: "/bin/oauth2-proxy --config /etc/oauth2-proxy/oauth2-proxy.cfg"
+    # The CMD in the Dockerfile is now just '/bin/oauth2-proxy'
+    # All config is provided by the env vars below
     envVars:
+      # Sensitive values from the environment group
       - key: OAUTH2_PROXY_CLIENT_ID
         fromGroup: axep-secrets
       - key: OAUTH2_PROXY_CLIENT_SECRET
         fromGroup: axep-secrets
       - key: OAUTH2_PROXY_COOKIE_SECRET
         fromGroup: axep-secrets
+      # Non-sensitive values set directly
+      - key: OAUTH2_PROXY_PROVIDER
+        value: "github"
+      - key: OAUTH2_PROXY_UPSTREAMS
+        value: "file:///app/#/"
+      - key: OAUTH2_PROXY_HTTP_ADDRESS
+        value: "0.0.0.0:10000"
+      - key: OAUTH2_PROXY_EMAIL_DOMAINS
+        value: "*"
+      - key: OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE
+        value: "/site_config/email_list.txt"
+      - key: OAUTH2_PROXY_COOKIE_SECURE
+        value: "true"
+      - key: OAUTH2_PROXY_COOKIE_SAMESITE
+        value: "lax"
+      - key: OAUTH2_PROXY_SCOPE
+        value: "user:email"
  

@@ -29,11 +29,9 @@ COPY email_list.txt /site_config/
 # Copy the built static files from the 'builder' stage
 COPY --from=builder /app/dist /app/
 
-# Copy the configuration file that the proxy needs
-COPY oauth2-proxy.cfg /etc/oauth2-proxy/oauth2-proxy.cfg
-
 # Expose the port the proxy will run on
-EXPOSE 80
+EXPOSE 10000
 
-# This is the command that starts the proxy
-CMD ["/bin/oauth2-proxy", "--config", "/etc/oauth2-proxy/oauth2-proxy.cfg"] 
+# This is the command that starts the proxy.
+# It will automatically pick up all OAUTH2_PROXY_ environment variables.
+CMD ["/bin/oauth2-proxy"] 
