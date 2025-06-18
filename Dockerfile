@@ -47,10 +47,10 @@ RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
     echo 'echo "Writing oauth2-proxy config file..."' >> /usr/local/bin/start.sh && \
     echo 'cat <<EOF > /etc/oauth2-proxy/oauth2-proxy.cfg' >> /usr/local/bin/start.sh && \
     echo 'http_address = "0.0.0.0:4180"' >> /usr/local/bin/start.sh && \
-    echo 'upstream = "file:///var/www/html#/"' >> /usr/local/bin/start.sh && \
+    echo 'upstreams = ["file:///var/www/html#/"]' >> /usr/local/bin/start.sh && \
     echo 'provider = "github"' >> /usr/local/bin/start.sh && \
     echo 'scope = "user:email"' >> /usr/local/bin/start.sh && \
-    echo 'email_domain = "*"' >> /usr/local/bin/start.sh && \
+    echo 'email_domains = ["*"]' >> /usr/local/bin/start.sh && \
     echo 'authenticated_emails_file = "/etc/oauth2-proxy/emails.txt"' >> /usr/local/bin/start.sh && \
     echo '' >> /usr/local/bin/start.sh && \
     echo '# These are injected by Render' >> /usr/local/bin/start.sh && \
