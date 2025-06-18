@@ -21,9 +21,10 @@ services:
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
-    # The start command uses our custom startup script
-    dockerCommand: "/usr/local/bin/start-oauth2-proxy.sh"
+    dockerCommand: "--config=/etc/oauth2-proxy/oauth2-proxy.cfg"
     envVars:
       - key: OAUTH2_PROXY_CLIENT_ID
       - key: OAUTH2_PROXY_CLIENT_SECRET
+      - key: OAUTH2_PROXY_COOKIE_SECRET
+        generateValue: true
  

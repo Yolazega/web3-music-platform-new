@@ -54,17 +54,12 @@ RUN echo '# OAuth2 Proxy Configuration' > /etc/oauth2-proxy/oauth2-proxy.cfg && 
 # Create the email whitelist file
 RUN echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
 
-# Create startup script to handle cookie secret conversion
-RUN printf '#!/bin/bash\nset -e\n\necho "Starting OAuth2 Proxy with proper cookie secret generation..."\n\n# Check if Render injected a bad cookie secret\nif [ -n "$OAUTH2_PROXY_COOKIE_SECRET" ]; then\n    echo "WARNING: Found existing OAUTH2_PROXY_COOKIE_SECRET (length: ${#OAUTH2_PROXY_COOKIE_SECRET})"\n    echo "This will be ignored - using command line parameters only"\nfi\n\n# Always generate a proper 32-byte base64-encoded secret\necho "Generating proper 32-byte base64 secret..."\nPROPER_SECRET=$(dd if=/dev/urandom bs=32 count=1 2>/dev/null | base64 -w 0)\necho "Generated secret length: ${#PROPER_SECRET} characters"\necho "Secret (first 10 chars): ${PROPER_SECRET:0:10}..."\n\n# Verify the secret decodes to 32 bytes\nDECODED_LENGTH=$(echo -n "$PROPER_SECRET" | base64 -d | wc -c)\necho "Decoded secret length: $DECODED_LENGTH bytes"\n\nif [ "$DECODED_LENGTH" -ne 32 ]; then\n    echo "ERROR: Generated secret does not decode to 32 bytes!"\n    exit 1\nfi\n\necho "Starting OAuth2 proxy with all parameters via command line..."\necho "Generated cookie secret: ${PROPER_SECRET:0:10}... (${#PROPER_SECRET} chars)"\necho "Client ID: ${OAUTH2_PROXY_CLIENT_ID:0:10}..."\necho "Client Secret: ${OAUTH2_PROXY_CLIENT_SECRET:0:10}..."\n\n# Start oauth2-proxy with corrected parameter names\nexec env -u OAUTH2_PROXY_COOKIE_SECRET /bin/oauth2-proxy \\\n  --http-address="0.0.0.0:4180" \\\n  --upstream="file:///var/www/html#/" \\\n  --cookie-name="_oauth2_proxy" \\\n  --cookie-secure=true \\\n  --cookie-httponly=true \\\n  --cookie-samesite="lax" \\\n  --provider="github" \\\n  --scope="user:email" \\\n  --email-domain="*" \\\n  --authenticated-emails-file="/etc/oauth2-proxy/emails.txt" \\\n  --skip-provider-button=false \\\n  --cookie-secret="$PROPER_SECRET" \\\n  --client-id="$OAUTH2_PROXY_CLIENT_ID" \\\n  --client-secret="$OAUTH2_PROXY_CLIENT_SECRET"\n' > /usr/local/bin/start-oauth2-proxy.sh
-
-# Make the startup script executable
-RUN chmod +x /usr/local/bin/start-oauth2-proxy.sh
-
 # Switch back to oauth2-proxy user
 USER oauth2-proxy
 
 # Expose port
 EXPOSE 4180
 
-# Use the startup script as entrypoint
-ENTRYPOINT ["/usr/local/bin/start-oauth2-proxy.sh"] 
+# Use the oauth2-proxy binary as entrypoint.
+# The command will be provided by Render's dockerCommand.
+ENTRYPOINT ["/bin/oauth2-proxy"] 
