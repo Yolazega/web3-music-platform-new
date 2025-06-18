@@ -40,27 +40,29 @@ RUN echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
 RUN chown -R oauth2-proxy:oauth2-proxy /etc/oauth2-proxy
 
 # Create a startup script
-RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
-    echo 'set -e' >> /usr/local/bin/start.sh && \
-    echo '' >> /usr/local/bin/start.sh && \
-    echo '# Create the config file from environment variables' >> /usr/local/bin/start.sh && \
-    echo 'echo "Writing oauth2-proxy config file..."' >> /usr/local/bin/start.sh && \
-    echo 'cat <<EOF > /etc/oauth2-proxy/oauth2-proxy.cfg' >> /usr/local/bin/start.sh && \
-    echo 'http_address = "0.0.0.0:4180"' >> /usr/local/bin/start.sh && \
-    echo 'upstreams = ["file:///var/www/html#/"]' >> /usr/local/bin/start.sh && \
-    echo 'provider = "github"' >> /usr/local/bin/start.sh && \
-    echo 'scope = "user:email"' >> /usr/local/bin/start.sh && \
-    echo 'email_domains = ["*"]' >> /usr/local/bin/start.sh && \
-    echo 'authenticated_emails_file = "/etc/oauth2-proxy/emails.txt"' >> /usr/local/bin/start.sh && \
-    echo '' >> /usr/local/bin/start.sh && \
-    echo '# These are injected by Render' >> /usr/local/bin/start.sh && \
-    echo 'client_id = "'$OAUTH2_PROXY_CLIENT_ID'"' >> /usr/local/bin/start.sh && \
-    echo 'client_secret = "'$OAUTH2_PROXY_CLIENT_SECRET'"' >> /usr/local/bin/start.sh && \
-    echo 'cookie_secret = "'$OAUTH2_PROXY_COOKIE_SECRET'"' >> /usr/local/bin/start.sh && \
-    echo 'EOF' >> /usr/local/bin/start.sh && \
-    echo '' >> /usr/local/bin/start.sh && \
-    echo 'echo "Starting oauth2-proxy..."' >> /usr/local/bin/start.sh && \
-    echo 'exec /bin/oauth2-proxy --config=/etc/oauth2-proxy/oauth2-proxy.cfg' >> /usr/local/bin/start.sh
+RUN cat <<'EOF' > /usr/local/bin/start.sh
+#!/bin/sh
+set -e
+
+# Create the config file from environment variables
+echo "Writing oauth2-proxy config file..."
+cat <<CONFIG_EOF > /etc/oauth2-proxy/oauth2-proxy.cfg
+http_address = "0.0.0.0:4180"
+upstreams = ["file:///var/www/html#/"]
+provider = "github"
+scope = "user:email"
+email_domains = ["*"]
+authenticated_emails_file = "/etc/oauth2-proxy/emails.txt"
+
+# These are injected by Render
+client_id = "$OAUTH2_PROXY_CLIENT_ID"
+client_secret = "$OAUTH2_PROXY_CLIENT_SECRET"
+cookie_secret = "$OAUTH2_PROXY_COOKIE_SECRET"
+CONFIG_EOF
+
+echo "Starting oauth2-proxy..."
+exec /bin/oauth2-proxy --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+EOF
 
 # Make the startup script executable
 RUN chmod +x /usr/local/bin/start.sh

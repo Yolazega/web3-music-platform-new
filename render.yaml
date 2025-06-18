@@ -22,10 +22,6 @@ services:
     plan: starter
     dockerfilePath: ./Dockerfile
     envVars:
-      - key: OAUTH2_PROXY_CLIENT_ID
-        fromKey: OAUTH2_PROXY_CLIENT_ID
-      - key: OAUTH2_PROXY_CLIENT_SECRET
-        fromKey: OAUTH2_PROXY_CLIENT_SECRET
       - key: OAUTH2_PROXY_COOKIE_SECRET
         generateValue: true
  
