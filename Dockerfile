@@ -34,23 +34,6 @@ RUN adduser -D -s /bin/sh oauth2-proxy
 # Copy the built React app
 COPY --from=builder /app/dist /var/www/html
 
-# Create oauth2-proxy config directory
-RUN mkdir -p /etc/oauth2-proxy
-
-# Create the oauth2-proxy configuration file
-RUN echo '# OAuth2 Proxy Configuration' > /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'http_address = "0.0.0.0:4180"' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'upstreams = ["file:///var/www/html#/"]' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'cookie_name = "_oauth2_proxy"' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'cookie_secure = true' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'cookie_httponly = true' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'cookie_samesite = "lax"' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'provider = "github"' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'scope = "user:email"' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'email_domains = ["*"]' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'authenticated_emails_file = "/etc/oauth2-proxy/emails.txt"' >> /etc/oauth2-proxy/oauth2-proxy.cfg && \
-    echo 'skip_provider_button = false' >> /etc/oauth2-proxy/oauth2-proxy.cfg
-
 # Create the email whitelist file
 RUN echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
 
