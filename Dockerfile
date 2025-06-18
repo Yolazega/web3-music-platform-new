@@ -35,7 +35,7 @@ RUN adduser -D -s /bin/sh oauth2-proxy
 COPY --from=builder /app/dist /var/www/html
 
 # Create the email whitelist file
-RUN echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
+RUN mkdir -p /etc/oauth2-proxy && echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
 
 # Switch back to oauth2-proxy user
 USER oauth2-proxy
