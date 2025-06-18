@@ -40,28 +40,27 @@ RUN echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
 RUN chown -R oauth2-proxy:oauth2-proxy /etc/oauth2-proxy
 
 # Create a startup script
-RUN printf '#!/bin/sh\n\
-set -e\n\
-\n\
-# Create the config file from environment variables\n\
-echo "Writing oauth2-proxy config file..."\n\
-cat <<EOF > /etc/oauth2-proxy/oauth2-proxy.cfg\n\
-http_address = "0.0.0.0:4180"\n\
-upstream = "file:///var/www/html#/"\n\
-provider = "github"\n\
-scope = "user:email"\n\
-email_domain = "*"\n\
-authenticated_emails_file = "/etc/oauth2-proxy/emails.txt"\n\
-\n\
-# These are injected by Render\n\
-client_id = \\"$OAUTH2_PROXY_CLIENT_ID\\"\n\
-client_secret = \\"$OAUTH2_PROXY_CLIENT_SECRET\\"\n\
-cookie_secret = \\"$OAUTH2_PROXY_COOKIE_SECRET\\"\n\
-EOF\n\
-\n\
-echo "Starting oauth2-proxy..."\n\
-exec /bin/oauth2-proxy --config=/etc/oauth2-proxy/oauth2-proxy.cfg\n\
-' > /usr/local/bin/start.sh
+RUN echo '#!/bin/sh' > /usr/local/bin/start.sh && \
+    echo 'set -e' >> /usr/local/bin/start.sh && \
+    echo '' >> /usr/local/bin/start.sh && \
+    echo '# Create the config file from environment variables' >> /usr/local/bin/start.sh && \
+    echo 'echo "Writing oauth2-proxy config file..."' >> /usr/local/bin/start.sh && \
+    echo 'cat <<EOF > /etc/oauth2-proxy/oauth2-proxy.cfg' >> /usr/local/bin/start.sh && \
+    echo 'http_address = "0.0.0.0:4180"' >> /usr/local/bin/start.sh && \
+    echo 'upstream = "file:///var/www/html#/"' >> /usr/local/bin/start.sh && \
+    echo 'provider = "github"' >> /usr/local/bin/start.sh && \
+    echo 'scope = "user:email"' >> /usr/local/bin/start.sh && \
+    echo 'email_domain = "*"' >> /usr/local/bin/start.sh && \
+    echo 'authenticated_emails_file = "/etc/oauth2-proxy/emails.txt"' >> /usr/local/bin/start.sh && \
+    echo '' >> /usr/local/bin/start.sh && \
+    echo '# These are injected by Render' >> /usr/local/bin/start.sh && \
+    echo 'client_id = "'$OAUTH2_PROXY_CLIENT_ID'"' >> /usr/local/bin/start.sh && \
+    echo 'client_secret = "'$OAUTH2_PROXY_CLIENT_SECRET'"' >> /usr/local/bin/start.sh && \
+    echo 'cookie_secret = "'$OAUTH2_PROXY_COOKIE_SECRET'"' >> /usr/local/bin/start.sh && \
+    echo 'EOF' >> /usr/local/bin/start.sh && \
+    echo '' >> /usr/local/bin/start.sh && \
+    echo 'echo "Starting oauth2-proxy..."' >> /usr/local/bin/start.sh && \
+    echo 'exec /bin/oauth2-proxy --config=/etc/oauth2-proxy/oauth2-proxy.cfg' >> /usr/local/bin/start.sh
 
 # Make the startup script executable
 RUN chmod +x /usr/local/bin/start.sh
