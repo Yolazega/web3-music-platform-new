@@ -37,6 +37,7 @@ COPY --from=builder /app/dist /var/www/html
 # Create oauth2-proxy config directory and email whitelist
 RUN mkdir -p /etc/oauth2-proxy
 RUN echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
+RUN chown -R oauth2-proxy:oauth2-proxy /etc/oauth2-proxy
 
 # Create a startup script
 RUN printf '#!/bin/sh\n\
