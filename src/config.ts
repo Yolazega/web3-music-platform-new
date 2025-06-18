@@ -1,7 +1,7 @@
 import { sepolia, polygon } from 'wagmi/chains';
 
 export const AXEP_VOTING_CONTRACT_ADDRESS = "0x83072BC70659AB6aCcd0A46C05bF2748F2Cb2D8e";
-export const AXP_TOKEN_CONTRACT_ADDRESS = 'YOUR_AXP_TOKEN_CONTRACT_ADDRESS';
+export const AXP_TOKEN_CONTRACT_ADDRESS = '0xa1edD20366dbAc7341DE5fdb9FE1711Fb9EAD4d4';
 export const AMOY_CHAIN_ID = '0x13882';
 
 export const AMOY_RPC_URL = 'https://rpc-amoy.polygon.technology/';
