@@ -91,6 +91,7 @@ const initializeDatabase = async () => {
 const allowedOrigins = [
     'http://localhost:5173', // For local development
     'https://web3-music-frontend.onrender.com', // Our new Render frontend
+    'https://www.axepvoting.io', // Your new custom domain
     'https://web3-music-platform-new.vercel.app' // For deployed frontend
 ];
 
