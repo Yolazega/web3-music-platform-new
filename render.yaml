@@ -21,27 +21,9 @@ services:
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
-    # The command is now set via ENTRYPOINT in the Dockerfile
-    # to force Render to stop using a cached command.
+    # The start command uses our custom startup script
+    dockerCommand: "/usr/local/bin/start-oauth2-proxy.sh"
     envVars:
-      # Pull all variables (CLIENT_ID, CLIENT_SECRET, COOKIE_SECRET)
-      # from the specified group. This is the correct syntax.
-      - fromGroup: axep-secrets
-      # Non-sensitive values set directly
-      - key: OAUTH2_PROXY_PROVIDER
-        value: "github"
-      - key: OAUTH2_PROXY_UPSTREAMS
-        value: "file:///app/#/"
-      - key: OAUTH2_PROXY_HTTP_ADDRESS
-        value: "0.0.0.0:10000"
-      - key: OAUTH2_PROXY_EMAIL_DOMAINS
-        value: "*"
-      - key: OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE
-        value: "/site_config/email_list.txt"
-      - key: OAUTH2_PROXY_COOKIE_SECURE
-        value: "true"
-      - key: OAUTH2_PROXY_COOKIE_SAMESITE
-        value: "lax"
-      - key: OAUTH2_PROXY_SCOPE
-        value: "user:email"
+      - key: OAUTH2_PROXY_CLIENT_ID
+      - key: OAUTH2_PROXY_CLIENT_SECRET
  
