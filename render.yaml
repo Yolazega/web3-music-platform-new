@@ -22,6 +22,6 @@ services:
     plan: starter
     dockerfilePath: ./Dockerfile
     envVars:
-      - key: OAUTH2_PROXY_COOKIE_SECRET
+      - key: RENDER_GENERATED_COOKIE_SECRET
         generateValue: true
  

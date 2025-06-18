@@ -39,29 +39,28 @@ RUN mkdir -p /etc/oauth2-proxy
 RUN echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
 RUN chown -R oauth2-proxy:oauth2-proxy /etc/oauth2-proxy
 
-# Create a startup script
+# Create a startup script that decodes the cookie secret
 RUN cat <<'EOF' > /usr/local/bin/start.sh
 #!/bin/sh
 set -e
 
-# Create the config file from environment variables
-echo "Writing oauth2-proxy config file..."
-cat <<CONFIG_EOF > /etc/oauth2-proxy/oauth2-proxy.cfg
-http_address = "0.0.0.0:4180"
-upstreams = ["file:///var/www/html#/"]
-provider = "github"
-scope = "user:email"
-email_domains = ["*"]
-authenticated_emails_file = "/etc/oauth2-proxy/emails.txt"
+echo "Decoding cookie secret and setting environment..."
 
-# These are injected by Render
-client_id = "$OAUTH2_PROXY_CLIENT_ID"
-client_secret = "$OAUTH2_PROXY_CLIENT_SECRET"
-cookie_secret = "$OAUTH2_PROXY_COOKIE_SECRET"
-CONFIG_EOF
+# Decode the secret from Render and export it with the name oauth2-proxy expects.
+# The proxy requires the raw bytes, not the base64 string Render provides.
+export OAUTH2_PROXY_COOKIE_SECRET=$(echo "$RENDER_GENERATED_COOKIE_SECRET" | base64 -d)
+
+# Set all other configuration via environment variables
+export OAUTH2_PROXY_HTTP_ADDRESS="0.0.0.0:4180"
+export OAUTH2_PROXY_UPSTREAMS="file:///var/www/html#/"
+export OAUTH2_PROXY_PROVIDER="github"
+export OAUTH2_PROXY_SCOPE="user:email"
+export OAUTH2_PROXY_EMAIL_DOMAINS="*"
+export OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE="/etc/oauth2-proxy/emails.txt"
+# OAUTH2_PROXY_CLIENT_ID and OAUTH2_PROXY_CLIENT_SECRET are already in the environment from Render
 
 echo "Starting oauth2-proxy..."
-exec /bin/oauth2-proxy --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+exec /bin/oauth2-proxy
 EOF
 
 # Make the startup script executable
