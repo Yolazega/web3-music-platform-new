@@ -22,28 +22,6 @@ services:
     plan: starter
     dockerfilePath: ./Dockerfile
     envVars:
-      - key: OAUTH2_PROXY_HTTP_ADDRESS
-        value: "0.0.0.0:4180"
-      - key: OAUTH2_PROXY_UPSTREAMS
-        value: "file:///var/www/html#/"
-      - key: OAUTH2_PROXY_COOKIE_NAME
-        value: "_oauth2_proxy"
-      - key: OAUTH2_PROXY_COOKIE_SECURE
-        value: "true"
-      - key: OAUTH2_PROXY_COOKIE_HTTPONLY
-        value: "true"
-      - key: OAUTH2_PROXY_COOKIE_SAMESITE
-        value: "lax"
-      - key: OAUTH2_PROXY_PROVIDER
-        value: "github"
-      - key: OAUTH2_PROXY_SCOPE
-        value: "user:email"
-      - key: OAUTH2_PROXY_EMAIL_DOMAINS
-        value: "*"
-      - key: OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE
-        value: "/etc/oauth2-proxy/emails.txt"
-      - key: OAUTH2_PROXY_SKIP_PROVIDER_BUTTON
-        value: "false"
       - key: OAUTH2_PROXY_CLIENT_ID
         fromKey: OAUTH2_PROXY_CLIENT_ID
       - key: OAUTH2_PROXY_CLIENT_SECRET

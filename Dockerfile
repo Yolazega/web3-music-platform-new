@@ -34,8 +34,36 @@ RUN adduser -D -s /bin/sh oauth2-proxy
 # Copy the built React app
 COPY --from=builder /app/dist /var/www/html
 
-# Create the email whitelist file
-RUN mkdir -p /etc/oauth2-proxy && echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
+# Create oauth2-proxy config directory and email whitelist
+RUN mkdir -p /etc/oauth2-proxy
+RUN echo 'robbescardanelli@gmail.com' > /etc/oauth2-proxy/emails.txt
+
+# Create a startup script
+RUN printf '#!/bin/sh\n\
+set -e\n\
+\n\
+# Create the config file from environment variables\n\
+echo "Writing oauth2-proxy config file..."\n\
+cat <<EOF > /etc/oauth2-proxy/oauth2-proxy.cfg\n\
+http_address = "0.0.0.0:4180"\n\
+upstream = "file:///var/www/html#/"\n\
+provider = "github"\n\
+scope = "user:email"\n\
+email_domain = "*"\n\
+authenticated_emails_file = "/etc/oauth2-proxy/emails.txt"\n\
+\n\
+# These are injected by Render\n\
+client_id = \\"$OAUTH2_PROXY_CLIENT_ID\\"\n\
+client_secret = \\"$OAUTH2_PROXY_CLIENT_SECRET\\"\n\
+cookie_secret = \\"$OAUTH2_PROXY_COOKIE_SECRET\\"\n\
+EOF\n\
+\n\
+echo "Starting oauth2-proxy..."\n\
+exec /bin/oauth2-proxy --config=/etc/oauth2-proxy/oauth2-proxy.cfg\n\
+' > /usr/local/bin/start.sh
+
+# Make the startup script executable
+RUN chmod +x /usr/local/bin/start.sh
 
 # Switch back to oauth2-proxy user
 USER oauth2-proxy
@@ -43,6 +71,5 @@ USER oauth2-proxy
 # Expose port
 EXPOSE 4180
 
-# Use the oauth2-proxy binary as entrypoint.
-# The command will be provided by Render's dockerCommand.
-ENTRYPOINT ["/bin/oauth2-proxy"] 
+# Run the startup script
+ENTRYPOINT ["/usr/local/bin/start.sh"] 
