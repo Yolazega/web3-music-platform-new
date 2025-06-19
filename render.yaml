@@ -20,7 +20,6 @@ services:
   - type: web
     name: web3-music-frontend
     runtime: static
-    plan: free
     buildCommand: "yarn install && yarn build"
     staticPublishPath: ./dist
     routes:
