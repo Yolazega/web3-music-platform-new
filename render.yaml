@@ -16,12 +16,13 @@ services:
       name: data
       mountPath: /var/data
       sizeGB: 1
-  - type: web
+  - type: static_site
     name: web3-music-frontend
-    runtime: docker
     plan: starter
-    dockerfilePath: ./Dockerfile
-    envVars:
-      - key: RENDER_GENERATED_COOKIE_SECRET
-        generateValue: true
+    buildCommand: "yarn install && yarn build"
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: "/*"
+        destination: "/index.html"
  

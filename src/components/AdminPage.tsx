@@ -5,10 +5,11 @@ import {
     Container, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button,
     CircularProgress, Card, CardContent, Grid, Alert, Box, Typography, Link, Snackbar
 } from '@mui/material';
-import { useWriteContract } from 'wagmi';
+import { useWriteContract, useAccount } from 'wagmi';
 import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI, AMOY_RPC_URL } from '../config';
 import { ethers } from 'ethers';
 import { createPublicClient, http, parseEventLogs } from 'viem';
+import { readContract } from 'viem/actions';
 import { polygonAmoy } from 'viem/chains';
 
 interface ShareSubmission {
@@ -45,8 +46,37 @@ const AdminPage: React.FC = () => {
     const [isTallying, setIsTallying] = useState<boolean>(false);
     const [isUpdatingShare, setIsUpdatingShare] = useState<Record<string, boolean>>({});
     const [snackbar, setSnackbar] = useState<{ open: boolean, message: string }>({ open: false, message: '' });
+    const [isOwner, setIsOwner] = useState<boolean>(false);
 
     const { writeContractAsync } = useWriteContract();
+    const { address: userAddress } = useAccount();
+
+    useEffect(() => {
+        const checkOwner = async () => {
+            try {
+                const contractOwner = await readContract(publicClient, {
+                    address: AXEP_VOTING_CONTRACT_ADDRESS,
+                    abi: AXEP_VOTING_CONTRACT_ABI,
+                    functionName: 'owner',
+                });
+
+                if (userAddress && contractOwner && userAddress.toLowerCase() === (contractOwner as string).toLowerCase()) {
+                    setIsOwner(true);
+                } else {
+                    setIsOwner(false);
+                }
+            } catch (error) {
+                console.error("Error checking contract owner:", error);
+                setIsOwner(false);
+            }
+        };
+
+        if(userAddress) {
+            checkOwner();
+        } else {
+            setIsOwner(false);
+        }
+    }, [userAddress]);
 
     const fetchAllData = useCallback(async () => {
         setLoading(true);
@@ -229,6 +259,17 @@ const AdminPage: React.FC = () => {
     if (loading) return <Container sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}><CircularProgress /></Container>;
     if (error) return <Container><Alert severity="error">{error}</Alert></Container>;
 
+    if (!isOwner) {
+        return (
+            <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+                <Alert severity="error">
+                    <Typography>Access Denied</Typography>
+                    <Typography>You are not authorized to view this page. Please connect with the owner wallet.</Typography>
+                </Alert>
+            </Container>
+        );
+    }
+
     return (
         <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
             <Typography variant="h4" gutterBottom>Admin Dashboard</Typography>
@@ -241,10 +282,10 @@ const AdminPage: React.FC = () => {
             </Grid>
             
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 2 }}>
-                <Button variant="contained" color="secondary" onClick={handlePublishAll} disabled={isPublishing || stats.approved === 0}>
+                <Button variant="contained" color="secondary" onClick={handlePublishAll} disabled={isPublishing || stats.approved === 0 || !isOwner}>
                     {isPublishing ? <CircularProgress size={24} /> : `Publish ${stats.approved} Approved Tracks`}
                 </Button>
-                <Button variant="contained" color="info" onClick={handleTallyVotes} disabled={isTallying || stats.unprocessedVotes === 0}>
+                <Button variant="contained" color="info" onClick={handleTallyVotes} disabled={isTallying || stats.unprocessedVotes === 0 || !isOwner}>
                     {isTallying ? <CircularProgress size={24} /> : `Tally ${stats.unprocessedVotes} Votes`}
                 </Button>
             </Box>
@@ -277,14 +318,14 @@ const AdminPage: React.FC = () => {
                                 </TableCell>
                                 <TableCell>
                                     {track.status === 'pending' && (
-                                        <Button 
-                                            size="small" 
-                                            variant="contained" 
-                                            color="success" 
+                                        <Button
+                                            variant="contained"
+                                            size="small"
+                                            color="success"
                                             onClick={() => handleApprove(track.id)}
-                                            disabled={isApproving[track.id]}
+                                            disabled={isApproving[track.id] || track.status !== 'pending' || !isOwner}
                                         >
-                                            {isApproving[track.id] ? <CircularProgress size={20}/> : 'Approve'}
+                                            {isApproving[track.id] ? <CircularProgress size={20} /> : 'Approve'}
                                         </Button>
                                     )}
                                 </TableCell>
@@ -320,23 +361,24 @@ const AdminPage: React.FC = () => {
                                 <TableCell>
                                     {share.status === 'pending' && (
                                         <Box sx={{display: 'flex', gap: 1}}>
-                                            <Button 
-                                                size="small" 
-                                                variant="contained" 
-                                                color="success" 
+                                            <Button
+                                                variant="contained"
+                                                color="success"
+                                                size="small"
+                                                sx={{ mr: 1 }}
                                                 onClick={() => handleUpdateShareStatus(share.id, 'verified')}
-                                                disabled={isUpdatingShare[share.id]}
+                                                disabled={isUpdatingShare[share.id] || !isOwner}
                                             >
-                                                {isUpdatingShare[share.id] ? <CircularProgress size={20}/> : "Verify"}
+                                                {isUpdatingShare[share.id] ? <CircularProgress size={20} /> : 'Verify'}
                                             </Button>
-                                            <Button 
-                                                size="small" 
-                                                variant="contained" 
+                                            <Button
+                                                variant="contained"
                                                 color="error"
+                                                size="small"
                                                 onClick={() => handleUpdateShareStatus(share.id, 'rejected')}
-                                                disabled={isUpdatingShare[share.id]}
+                                                disabled={isUpdatingShare[share.id] || !isOwner}
                                             >
-                                                {isUpdatingShare[share.id] ? <CircularProgress size={20}/> : "Reject"}
+                                                {isUpdatingShare[share.id] ? <CircularProgress size={20} /> : 'Reject'}
                                             </Button>
                                         </Box>
                                     )}
