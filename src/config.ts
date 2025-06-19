@@ -1,5 +1,5 @@
 import { sepolia, polygon } from 'wagmi/chains';
-import * as VotingContractAbi from '../contracts/AxepVoting.json';
+import * as VotingContractAbi from '../abi/AxepVoting.json';
 
 export const AXEP_VOTING_CONTRACT_ADDRESS = "0xBaA01D1E504383da28368DfbeE84C2195Ab937EF";
 export const AXP_TOKEN_CONTRACT_ADDRESS = '0xa1edD20366dbAc7341DE5fdb9FE1711Fb9EAD4d4';

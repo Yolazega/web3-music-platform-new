@@ -58,6 +58,7 @@ const AdminPage: React.FC = () => {
                     address: AXEP_VOTING_CONTRACT_ADDRESS,
                     abi: AXEP_VOTING_CONTRACT_ABI,
                     functionName: 'owner',
+                    args: [],
                 });
 
                 if (userAddress && contractOwner && userAddress.toLowerCase() === (contractOwner as string).toLowerCase()) {
