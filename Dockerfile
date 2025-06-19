@@ -57,10 +57,11 @@ export OAUTH2_PROXY_PROVIDER="github"
 export OAUTH2_PROXY_SCOPE="user:email"
 export OAUTH2_PROXY_EMAIL_DOMAINS="*"
 export OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE="/etc/oauth2-proxy/emails.txt"
+export OAUTH2_PROXY_SKIP_AUTH_ROUTES="^/.*$"
 # OAUTH2_PROXY_CLIENT_ID and OAUTH2_PROXY_CLIENT_SECRET are already in the environment from Render
 
 echo "Starting oauth2-proxy..."
-exec /bin/oauth2-proxy
+exec /bin/oauth2-proxy --skip-auth-preflight=true
 EOF
 
 # Make the startup script executable
