@@ -158,70 +158,80 @@ const AdminPage: React.FC = () => {
     };
     
     const handlePublishAll = async () => {
-        if (!window.confirm("This will register all 'Approved' tracks on the blockchain. Continue?")) {
+        const tracksToPublish = submissions.filter(s => s.status === 'approved');
+
+        if (tracksToPublish.length === 0) {
+            setSnackbar({ open: true, message: 'No approved tracks to publish.' });
+            return;
+        }
+
+        if (!window.confirm(`This will register ${tracksToPublish.length} approved track(s) on the blockchain. Continue?`)) {
             return;
         }
         setIsPublishing(true);
-        setSnackbar({ open: true, message: "1/4: Fetching track data..." });
-        try {
-            // 1. Get track data from backend
-            const { data } = await api.get('/admin/get-publish-data');
-            
-            if (!data.trackData) {
-                setSnackbar({ open: true, message: data.message || 'No new tracks to publish.' });
-                setIsPublishing(false);
-                return;
-            }
+        setSnackbar({ open: true, message: "1/4: Preparing track data..." });
 
+        try {
+            const trackData = {
+                artistWallets: tracksToPublish.map(t => t.artistWallet as `0x${string}`),
+                artistNames: tracksToPublish.map(t => t.artist),
+                trackTitles: tracksToPublish.map(t => t.title),
+                genres: tracksToPublish.map(t => t.genre),
+                videoUrls: tracksToPublish.map(t => t.videoUrl || ''),
+                coverImageUrls: tracksToPublish.map(t => t.coverImageUrl || ''),
+            };
+            
             setSnackbar({ open: true, message: "2/4: Please approve the transaction in your wallet..." });
 
-            // 2. Call the smart contract
             const hash = await writeContractAsync({
                 address: AXEP_VOTING_CONTRACT_ADDRESS,
                 abi: AXEP_VOTING_CONTRACT_ABI,
                 functionName: 'batchRegisterAndUpload',
                 args: [
-                    data.trackData.artistWallets,
-                    data.trackData.artistNames,
-                    data.trackData.trackTitles,
-                    data.trackData.genres,
-                    data.trackData.videoUrls,
-                    data.trackData.coverImageUrls,
+                    trackData.artistWallets,
+                    trackData.artistNames,
+                    trackData.trackTitles,
+                    trackData.genres,
+                    trackData.videoUrls,
+                    trackData.coverImageUrls,
                 ],
             });
 
             setSnackbar({ open: true, message: `3/4: Transaction sent! Waiting for confirmation...` });
 
-            // 3. Get Transaction Receipt and Parse Logs
             const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
             const trackUploadedLogs = parseEventLogs({
                 abi: AXEP_VOTING_CONTRACT_ABI,
                 logs: receipt.logs,
                 eventName: 'TrackUploaded',
-                strict: false, // Make parsing more robust
+                strict: false,
             });
-
-            const successfulTracks = trackUploadedLogs.map(log => ({
-                // @ts-ignore
-                onChainId: Number(log.args.trackId),
-                // @ts-ignore
-                coverImageUrl: log.args.coverImageUrl,
-            }));
-
-            if(successfulTracks.length === 0) {
-                 setSnackbar({ open: true, message: 'Transaction confirmed, but no tracks were published. Please check the transaction on a block explorer.' });
+            
+            if (trackUploadedLogs.length === 0) {
+                 setSnackbar({ open: true, message: 'Transaction confirmed, but no "TrackUploaded" events were found.' });
                  setIsPublishing(false);
                  return;
             }
 
-            setSnackbar({ open: true, message: `4/4: Confirmed! Syncing ${successfulTracks.length} tracks with backend...` });
+            setSnackbar({ open: true, message: `4/4: Confirmed! Syncing ${trackUploadedLogs.length} tracks with backend...` });
             
-            // 4. Confirm publication with backend
-            await api.post('/admin/confirm-publish', { successfulTracks });
+            const updatePromises = trackUploadedLogs.map(async (log: any) => {
+                const coverUrl = log.args.coverImageUrl;
+                const originalTrack = tracksToPublish.find(t => t.coverImageUrl === coverUrl);
+
+                if (originalTrack) {
+                    await api.patch(`/admin/submissions/${originalTrack.id}`, {
+                        status: 'published',
+                        onChainId: Number(log.args.trackId)
+                    });
+                }
+            });
+
+            await Promise.all(updatePromises);
 
             setSnackbar({ open: true, message: 'Successfully published and synced all tracks!' });
-            fetchAllData(); // Refresh data
+            fetchAllData();
             
         } catch (err: any) {
             const errorMsg = err.response?.data?.error || err.shortMessage || err.message || "An error occurred during publishing.";

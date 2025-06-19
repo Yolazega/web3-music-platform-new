@@ -5,6 +5,7 @@ export interface Track {
   artistWallet: string;
   filePath: string;
   ipfsHash: string;
+  genre: string;
   status: 'pending' | 'approved' | 'rejected' | 'published' | 'archived';
   onChainId?: number;
   votes: number;
