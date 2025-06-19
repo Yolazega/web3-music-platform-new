@@ -17,7 +17,7 @@ dotenv.config();
 
 const app = express();
 app.use(cors()); // Allow all origins
-const port = process.env.PORT || 3001;
+const port = parseInt(process.env.PORT || '3001', 10);
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs/";
 
 // --- Database Path Setup ---
