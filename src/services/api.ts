@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Determine the base URL based on the environment
 const API_URL = import.meta.env.PROD
-  ? 'https://web3-music-backend.onrender.com' // Your deployed backend URL
+  ? 'https://web3-music-backend-dski.onrender.com' // Your deployed backend URL
   : 'http://localhost:3001'; // Your local backend URL
 
 const api = axios.create({
