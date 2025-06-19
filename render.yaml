@@ -16,7 +16,7 @@ services:
       name: data
       mountPath: /var/data
       sizeGB: 1
-  - type: static_site
+  - type: static site
     name: web3-music-frontend
     plan: starter
     buildCommand: "yarn install && yarn build"
