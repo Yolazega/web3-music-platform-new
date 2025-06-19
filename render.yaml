@@ -17,7 +17,7 @@ services:
       mountPath: /var/data
       sizeGB: 1
   - type: static site
-    name: web3-music-frontend
+    name: axep-frontend
     plan: starter
     buildCommand: "yarn install && yarn build"
     staticPublishPath: ./dist
