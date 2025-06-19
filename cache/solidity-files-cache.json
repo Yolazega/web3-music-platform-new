@@ -2,17 +2,16 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/contracts/AXPToken.sol": {
-      "lastModificationDate": 1749472942586,
+      "lastModificationDate": 1750260963638,
       "contentHash": "d80871d042991405a979fcd86af4487b",
       "sourceName": "contracts/AXPToken.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -43,17 +42,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/access/Ownable.sol": {
-      "lastModificationDate": 1749341429785,
+      "lastModificationDate": 1750013731938,
       "contentHash": "d3c790edc9ccf808a17c5a6cd13614fd",
       "sourceName": "@openzeppelin/contracts/access/Ownable.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -82,17 +80,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol": {
-      "lastModificationDate": 1749341432222,
+      "lastModificationDate": 1750013740613,
       "contentHash": "57d79df281f57bbb1b09214c7914f877",
       "sourceName": "@openzeppelin/contracts/token/ERC20/ERC20.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -124,17 +121,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol": {
-      "lastModificationDate": 1749341435239,
+      "lastModificationDate": 1750013744768,
       "contentHash": "273d8d24b06f67207dd5f35c3a0c1086",
       "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -164,17 +160,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/utils/Context.sol": {
-      "lastModificationDate": 1749341429798,
+      "lastModificationDate": 1750013731950,
       "contentHash": "67bfbc07588eb8683b3fd8f6f909563e",
       "sourceName": "@openzeppelin/contracts/utils/Context.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -201,17 +196,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol": {
-      "lastModificationDate": 1749341432222,
+      "lastModificationDate": 1750013740613,
       "contentHash": "8f19f64d2adadf448840908bbaf431c8",
       "sourceName": "@openzeppelin/contracts/token/ERC20/IERC20.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -238,17 +232,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/interfaces/draft-IERC6093.sol": {
-      "lastModificationDate": 1749341429791,
+      "lastModificationDate": 1750013731949,
       "contentHash": "267d92fe4de67b1bdb3302c08f387dbf",
       "sourceName": "@openzeppelin/contracts/interfaces/draft-IERC6093.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -277,17 +270,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol": {
-      "lastModificationDate": 1749341435241,
+      "lastModificationDate": 1750013744769,
       "contentHash": "794db3115001aa372c79326fcfd44b1f",
       "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -316,17 +308,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC721/ERC721.sol": {
-      "lastModificationDate": 1749341432222,
+      "lastModificationDate": 1750013740611,
       "contentHash": "a7951c81f7037d558c6d2f220b0cb38e",
       "sourceName": "@openzeppelin/contracts/token/ERC721/ERC721.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -361,17 +352,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/utils/Strings.sol": {
-      "lastModificationDate": 1749341429801,
+      "lastModificationDate": 1750013731954,
       "contentHash": "13dbc135f563c72a11b1cf4fbb5fb284",
       "sourceName": "@openzeppelin/contracts/utils/Strings.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -402,17 +392,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/utils/introspection/ERC165.sol": {
-      "lastModificationDate": 1749341432181,
+      "lastModificationDate": 1750013740647,
       "contentHash": "7c03c1e37c3dc24eafb76dc2b8a5c3a6",
       "sourceName": "@openzeppelin/contracts/utils/introspection/ERC165.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -441,17 +430,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol": {
-      "lastModificationDate": 1749341432222,
+      "lastModificationDate": 1750013740609,
       "contentHash": "1fdc621cd6747e8985e11fc76ce74511",
       "sourceName": "@openzeppelin/contracts/token/ERC721/IERC721.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -480,17 +468,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC721/utils/ERC721Utils.sol": {
-      "lastModificationDate": 1749341435246,
+      "lastModificationDate": 1750013744765,
       "contentHash": "e12814872b31b0af06106796a6621b04",
       "sourceName": "@openzeppelin/contracts/token/ERC721/utils/ERC721Utils.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -520,17 +507,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol": {
-      "lastModificationDate": 1749341435244,
+      "lastModificationDate": 1750013744764,
       "contentHash": "12c206f185cb951213799561fdcaa40d",
       "sourceName": "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -559,17 +545,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/utils/math/SafeCast.sol": {
-      "lastModificationDate": 1749341432177,
+      "lastModificationDate": 1750013740649,
       "contentHash": "2adca1150f58fc6f3d1f0a0f22ee7cca",
       "sourceName": "@openzeppelin/contracts/utils/math/SafeCast.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -596,17 +581,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/utils/math/Math.sol": {
-      "lastModificationDate": 1749341432177,
+      "lastModificationDate": 1750013740649,
       "contentHash": "5ec781e33d3a9ac91ffdc83d94420412",
       "sourceName": "@openzeppelin/contracts/utils/math/Math.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -636,17 +620,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/utils/math/SignedMath.sol": {
-      "lastModificationDate": 1749341432175,
+      "lastModificationDate": 1750013740648,
       "contentHash": "ae3528afb8bdb0a7dcfba5b115ee8074",
       "sourceName": "@openzeppelin/contracts/utils/math/SignedMath.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -675,17 +658,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/utils/Panic.sol": {
-      "lastModificationDate": 1749341429800,
+      "lastModificationDate": 1750013731953,
       "contentHash": "2133dc13536b4a6a98131e431fac59e1",
       "sourceName": "@openzeppelin/contracts/utils/Panic.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -712,17 +694,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol": {
-      "lastModificationDate": 1749341432181,
+      "lastModificationDate": 1750013740647,
       "contentHash": "bf0119eb2a570f219729ff38b6cd1df8",
       "sourceName": "@openzeppelin/contracts/utils/introspection/IERC165.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -749,17 +730,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol": {
-      "lastModificationDate": 1749341432223,
+      "lastModificationDate": 1750013740609,
       "contentHash": "729ce0904eb533489ffcc3bfe91237d4",
       "sourceName": "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -790,13 +770,12 @@
       "contentHash": "e7f61aabb5fab3a564a6887de52e048a",
       "sourceName": "contracts/AxepVoting_Simple.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -826,17 +805,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/contracts/AxepArtistNFT.sol": {
-      "lastModificationDate": 1749473169690,
+      "lastModificationDate": 1750260963831,
       "contentHash": "484688469b7bd91a621ec2711dbde1b2",
       "sourceName": "contracts/AxepArtistNFT.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -867,17 +845,16 @@
       ]
     },
     "/Users/robbescardanelli/Documents/Cursor/web3-music-platform-new/node_modules/@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol": {
-      "lastModificationDate": 1749341435243,
+      "lastModificationDate": 1750013744763,
       "contentHash": "594379619f21d2767c325a6c46b53399",
       "sourceName": "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol",
       "solcConfig": {
-        "version": "0.8.30",
+        "version": "0.8.20",
         "settings": {
           "optimizer": {
             "enabled": true,
             "runs": 200
           },
-          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
