@@ -16,13 +16,13 @@ services:
       name: data
       mountPath: /var/data
       sizeGB: 1
-  - type: static site
-    name: axep-frontend
+  - type: web
+    name: web3-music-frontend
+    runtime: static
     plan: starter
     buildCommand: "yarn install && yarn build"
     staticPublishPath: ./dist
     routes:
       - type: rewrite
-        source: "/*"
-        destination: "/index.html"
- 
+        source: /*
+        destination: /index.html
