@@ -117,10 +117,26 @@ const AdminPage: React.FC = () => {
     const handleApprove = async (id: string) => {
         setIsApproving(prev => ({...prev, [id]: true}));
         try {
-            await api.post(`/admin/approve/${id}`);
+            await api.patch(`/admin/submissions/${id}`, { status: 'approved' });
+            setSnackbar({ open: true, message: 'Track approved successfully.' });
             fetchAllData();
         } catch (err) { 
-            alert(`Error approving submission ${id}.`); 
+            console.error(`Error approving submission ${id}:`, err);
+            setSnackbar({ open: true, message: `Error approving submission.` });
+        } finally {
+            setIsApproving(prev => ({...prev, [id]: false}));
+        }
+    };
+
+    const handleReject = async (id: string) => {
+        setIsApproving(prev => ({...prev, [id]: true}));
+        try {
+            await api.patch(`/admin/submissions/${id}`, { status: 'rejected' });
+            setSnackbar({ open: true, message: 'Track rejected successfully.' });
+            fetchAllData();
+        } catch (err) { 
+            console.error(`Error rejecting submission ${id}:`, err);
+            setSnackbar({ open: true, message: `Error rejecting submission.` });
         } finally {
             setIsApproving(prev => ({...prev, [id]: false}));
         }
@@ -129,7 +145,7 @@ const AdminPage: React.FC = () => {
     const handleUpdateShareStatus = async (id: string, status: 'verified' | 'rejected') => {
         setIsUpdatingShare(prev => ({ ...prev, [id]: true }));
         try {
-            await api.post(`/admin/shares/${status}/${id}`);
+            await api.patch(`/admin/share-submissions/${id}`, { status });
             setSnackbar({ open: true, message: `Share status updated to ${status}.` });
             // Refresh the data to show the new status
             setShareSubmissions(prev => prev.map(s => s.id === id ? { ...s, status } : s));
@@ -318,15 +334,25 @@ const AdminPage: React.FC = () => {
                                 </TableCell>
                                 <TableCell>
                                     {track.status === 'pending' && (
-                                        <Button
-                                            variant="contained"
-                                            size="small"
-                                            color="success"
-                                            onClick={() => handleApprove(track.id)}
-                                            disabled={isApproving[track.id] || track.status !== 'pending' || !isOwner}
-                                        >
-                                            {isApproving[track.id] ? <CircularProgress size={20} /> : 'Approve'}
-                                        </Button>
+                                        <>
+                                            <Button
+                                                variant="contained"
+                                                color="primary"
+                                                onClick={() => handleApprove(track.id)}
+                                                disabled={isApproving[track.id]}
+                                            >
+                                                {isApproving[track.id] ? <CircularProgress size={24} /> : 'Approve'}
+                                            </Button>
+                                            <Button
+                                                variant="contained"
+                                                color="secondary"
+                                                onClick={() => handleReject(track.id)}
+                                                disabled={isApproving[track.id]}
+                                                style={{ marginLeft: '10px' }}
+                                            >
+                                                Reject
+                                            </Button>
+                                        </>
                                     )}
                                 </TableCell>
                             </TableRow>
