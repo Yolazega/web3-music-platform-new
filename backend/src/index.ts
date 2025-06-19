@@ -16,6 +16,7 @@ import { ethers } from 'ethers';
 dotenv.config();
 
 const app = express();
+app.use(cors()); // Allow all origins
 const port = process.env.PORT || 3001;
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs/";
 
@@ -87,33 +88,12 @@ const initializeDatabase = async () => {
 };
 
 // --- Middlewares ---
-// Configure CORS to allow requests from your specific frontend URL
 const allowedOrigins = [
     'http://localhost:5173', // For local development
-    'https://web3-music-frontend.onrender.com', // Our new Render frontend
-    'https://www.axepvoting.io', // Your new custom domain
-    'https://web3-music-platform-new.vercel.app' // For deployed frontend
+    'https://web3-music-frontend-dski.onrender.com', // Our Render frontend
+    'https://www.axepvoting.io', // Your custom domain
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Allow the main domain and any vercel subdomains
-    const isAllowed = allowedOrigins.some(allowedOrigin => origin.startsWith(allowedOrigin)) || 
-                      origin.endsWith('.vercel.app');
-
-    if (isAllowed) {
-      callback(null, true);
-    } else {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      callback(new Error(msg));
-    }
-  },
-  methods: ['GET', 'POST', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', true); // Needed to get user's IP address behind a proxy like Render
