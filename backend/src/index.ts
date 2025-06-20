@@ -330,7 +330,8 @@ app.post('/share', async (req, res) => {
 app.get('/admin/submissions', async (req: Request, res: Response) => {
     try {
         const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-        res.json(db.tracks); // Return all tracks, regardless of status
+        // We can optionally filter by status if needed, e.g., only 'pending'
+        res.json(db.tracks);
     } catch (error) {
         console.error('Error fetching submissions for admin:', error);
         res.status(500).json({ error: 'Failed to fetch submissions.' });
@@ -410,18 +411,71 @@ app.patch('/admin/share-submissions/:id', async (req, res) => {
     }
 });
 
-
-// Admin endpoint to get all votes
-app.get('/admin/votes', async (req, res) => {
+app.get('/admin/votes/tally', async (req, res) => {
     try {
-        const db = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-        res.json(db.votes);
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+
+        const publishedTrackOnChainIds = new Set(
+            db.tracks
+                .filter(t => t.status === 'published' && t.onChainId !== undefined)
+                .map(t => t.onChainId!)
+        );
+
+        const unprocessedVotes = db.votes.filter(v => 
+            v.status === 'unprocessed' && 
+            publishedTrackOnChainIds.has(parseInt(v.trackId)) // Ensure vote is for a published track
+        );
+
+        if (unprocessedVotes.length === 0) {
+            return res.status(404).json({ message: "No unprocessed votes for published tracks found." });
+        }
+
+        const voteCounts: { [key: number]: number } = {};
+        unprocessedVotes.forEach(vote => {
+            const trackOnChainId = parseInt(vote.trackId, 10);
+            voteCounts[trackOnChainId] = (voteCounts[trackOnChainId] || 0) + 1;
+        });
+        
+        const trackIds = Object.keys(voteCounts).map(Number);
+        const counts = Object.values(voteCounts);
+
+        res.json({ trackIds, voteCounts: counts });
+
     } catch (error) {
-        console.error('Error fetching votes for admin:', error);
-        res.status(500).json({ error: 'Failed to fetch votes.' });
+        console.error('Error tallying votes:', error);
+        res.status(500).json({ error: 'Failed to tally votes.' });
     }
 });
 
+app.post('/votes/clear', async (req, res) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        
+        // Mark all 'unprocessed' votes as 'processed'
+        db.votes.forEach(vote => {
+            if (vote.status === 'unprocessed') {
+                vote.status = 'processed';
+            }
+        });
+
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+        res.status(200).json({ message: 'Unprocessed votes have been cleared (marked as processed).' });
+    } catch (error) {
+        console.error('Error clearing votes:', error);
+        res.status(500).json({ error: 'Failed to clear votes.' });
+    }
+});
+
+// Admin endpoint for share submissions
+app.get('/admin/shares', async (req, res) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        res.json(db.shares);
+    } catch (error) {
+        console.error('Error fetching share submissions:', error);
+        res.status(500).json({ error: 'Failed to fetch share submissions.' });
+    }
+});
 
 app.get('/config', (req, res) => {
     try {

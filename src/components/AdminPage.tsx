@@ -249,7 +249,7 @@ const AdminPage: React.FC = () => {
         setIsTallying(true);
         setSnackbar({ open: true, message: "Fetching vote tally..." });
         try {
-            const tallyRes = await api.get('/votes/tally');
+            const tallyRes = await api.get('/admin/votes/tally');
             const { trackIds, voteCounts } = tallyRes.data;
 
             if (!trackIds || trackIds.length === 0) {
@@ -258,15 +258,17 @@ const AdminPage: React.FC = () => {
                 return;
             }
 
-            setSnackbar({ open: true, message: "Please approve the transaction in your wallet..." });
+            setSnackbar({ open: true, message: 'Tally received. Submitting to blockchain...' });
 
-            const hash = await writeContractAsync({
+            const { request } = await publicClient.simulateContract({
                 address: AXEP_VOTING_CONTRACT_ADDRESS,
                 abi: AXEP_VOTING_CONTRACT_ABI,
                 functionName: 'adminBatchVote',
                 args: [trackIds, voteCounts],
+                account: userAddress,
             });
 
+            const hash = await writeContractAsync(request);
             setSnackbar({ open: true, message: `Transaction sent! Hash: ${hash}. Clearing votes...` });
 
             await api.post('/votes/clear');
@@ -275,9 +277,8 @@ const AdminPage: React.FC = () => {
             fetchAllData();
 
         } catch (err: any) {
-            const errorMsg = err.shortMessage || err.message || "An error occurred during vote tallying.";
+            const errorMsg = err.response?.data?.message || err.shortMessage || err.message || "An error occurred during vote tallying.";
             setSnackbar({ open: true, message: `Error: ${errorMsg}` });
-            console.error(err);
         } finally {
             setIsTallying(false);
         }
