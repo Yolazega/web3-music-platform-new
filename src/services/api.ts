@@ -3,8 +3,8 @@ import axios from 'axios';
 // Determine the base URL based on the environment
 const API_URL = import.meta.env.VITE_BACKEND_URL || 
   (import.meta.env.PROD
-    ? 'https://axep-backend.onrender.com' // Updated to match render.yaml service name
-    : 'http://localhost:3001'); // Your local backend URL
+    ? 'https://axep-backend.onrender.com' // Hardcoded backend URL for production
+    : 'http://localhost:3001'); // Local development URL
 
 console.log('API URL:', API_URL); // Debug log
 

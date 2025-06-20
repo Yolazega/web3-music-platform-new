@@ -36,7 +36,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_BACKEND_URL
-        fromService:
-          type: web
-          name: axep-backend
-          property: url
+        value: https://axep-backend.onrender.com
