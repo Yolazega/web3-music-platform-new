@@ -71,12 +71,7 @@ const HomePage: React.FC = () => {
             <Typography variant="h2" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
                 VOTE SHARE CLAIM
             </Typography>
-            <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 4, maxWidth: '600px', mx: 'auto' }}>
-                Axep is a Web3-based music platform that rewards both artists and fans. The platform democratizes online casting by issuing tokens as rewards for social media activity. The goal is to reduce the dominant role of major music labels and provide artists and supporters with direct benefits from their engagement.
-            </Typography>
-             <Typography variant="body1" sx={{ fontStyle: 'italic', mb: 4 }}>
-                "The times when fans did not participate in the success of the artists they supported are over."
-            </Typography>
+
 
             {/* --- Genre Winners Section --- */}
             <Grid container spacing={4} sx={{ mb: 6 }}>
