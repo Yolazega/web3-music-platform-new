@@ -1,13 +1,13 @@
 import axios from 'axios';
 import FormData from 'form-data';
 import dotenv from 'dotenv';
-import fs from 'fs';
+import { UploadedFile } from 'express-fileupload';
 
 dotenv.config();
 
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || 'https://gateway.pinata.cloud/ipfs/';
 
-export const uploadToPinata = async (file: Express.Multer.File): Promise<string> => {
+export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
     const PINATA_JWT = process.env.PINATA_JWT;
     if (!PINATA_JWT) {
         throw new Error('Pinata JWT is not configured on the server.');
@@ -16,9 +16,9 @@ export const uploadToPinata = async (file: Express.Multer.File): Promise<string>
     const url = `https://api.pinata.cloud/pinning/pinFileToIPFS`;
     const formData = new FormData();
     
-    // Use the file buffer directly from memoryStorage
-    formData.append('file', file.buffer, {
-        filename: file.originalname,
+    // Use the file buffer from express-fileupload
+    formData.append('file', file.data, {
+        filename: file.name, // Use 'name' property
         contentType: file.mimetype
     });
 
