@@ -1,6 +1,5 @@
 import React, { useState, type ChangeEvent, useEffect } from 'react';
 import api from '../services/api';
-import { Grid, TextField } from '@mui/material';
 
 const UploadPage: React.FC = () => {
   // Removed all wagmi hooks (useAccount, useWriteContract, etc.)
@@ -54,18 +53,12 @@ const UploadPage: React.FC = () => {
     formData.append('coverImageFile', coverImageFile);
     formData.append('videoFile', videoFile);
 
-    // --- Start Debugging ---
-    console.log("Submitting FormData to /upload:");
-    for (let [key, value] of formData.entries()) {
-        console.log(`${key}:`, value);
-    }
-    // --- End Debugging ---
-
     try {
+        // Submit to backend
         const response = await api.post('/upload', formData, {
             headers: {
-                'Content-Type': 'multipart/form-data'
-            }
+                'Content-Type': 'multipart/form-data',
+            },
         });
 
         if (response.status === 201) {
@@ -81,7 +74,7 @@ const UploadPage: React.FC = () => {
             setIsOwnerConfirmed(false);
         }
     } catch (err: any) {
-        const errorMsg = err.response?.data?.details || err.message || 'An error occurred during the upload process.';
+        const errorMsg = err.response?.data?.error || err.message || 'An error occurred during the upload process.';
         setFormError(errorMsg);
         setUploadProgress(null);
     } finally {

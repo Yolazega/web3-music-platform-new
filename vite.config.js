@@ -7,4 +7,24 @@ export default defineConfig({
     optimizeDeps: {
         exclude: ['wagmi/chains'],
     },
+    build: {
+        rollupOptions: {
+            output: {
+                manualChunks: {
+                    vendor: ['react', 'react-dom'],
+                    wagmi: ['wagmi', '@rainbow-me/rainbowkit', 'viem'],
+                    ui: ['@mui/material', '@emotion/react', '@emotion/styled'],
+                },
+            },
+        },
+        chunkSizeWarningLimit: 1000,
+    },
+    server: {
+        port: 3000,
+        host: true,
+    },
+    preview: {
+        port: 3000,
+        host: true,
+    },
 });

@@ -2,14 +2,10 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import fileUpload, { UploadedFile } from 'express-fileupload';
-import axios from 'axios';
-import FormData from 'form-data';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
-import { exec } from 'child_process';
-import { startOfWeek, differenceInWeeks } from 'date-fns';
-import { getCurrentWeekNumber, isSubmissionPeriodOver, isVotingPeriodOverForWeek } from './time';
+import { getCurrentWeekNumber, isSubmissionPeriodOver } from './time';
 import { uploadToPinata } from './pinata';
 import { ethers } from 'ethers';
 
@@ -32,7 +28,6 @@ app.use(fileUpload({
 app.set('trust proxy', true);
 
 const port = parseInt(process.env.PORT || '3001', 10);
-const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs/";
 
 const dataDir = process.env.RENDER_DISK_MOUNT_PATH || path.join(__dirname, '..', 'data');
 const dbPath = path.join(dataDir, 'db.json');
@@ -85,7 +80,7 @@ const initializeDatabase = async () => {
     try {
         await fs.mkdir(dataDir, { recursive: true });
         await fs.access(dbPath);
-    } catch (error) {
+    } catch {
         console.log('Database file not found. Creating a new one.');
         await fs.writeFile(dbPath, JSON.stringify({
             tracks: [],

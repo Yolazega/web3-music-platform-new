@@ -6,8 +6,6 @@ const API_URL = import.meta.env.VITE_BACKEND_URL ||
     ? 'https://axep-backend.onrender.com' // Hardcoded backend URL for production
     : 'http://localhost:3001'); // Local development URL
 
-console.log('API URL:', API_URL); // Debug log
-
 const api = axios.create({
   baseURL: API_URL,
   timeout: 30000, // 30 second timeout
@@ -16,10 +14,12 @@ const api = axios.create({
   },
 });
 
-// Add request interceptor for debugging
+// Add request interceptor for debugging (only in development)
 api.interceptors.request.use(
   (config) => {
-    console.log('API Request:', config.method?.toUpperCase(), config.url);
+    if (!import.meta.env.PROD) {
+      console.log('API Request:', config.method?.toUpperCase(), config.url);
+    }
     return config;
   },
   (error) => {
@@ -28,10 +28,12 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for debugging
+// Add response interceptor for debugging (only in development)
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.status, response.config.url);
+    if (!import.meta.env.PROD) {
+      console.log('API Response:', response.status, response.config.url);
+    }
     return response;
   },
   (error) => {
