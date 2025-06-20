@@ -1,28 +1,38 @@
 services:
   # Blueprint for the Axep web3 music platform
   - type: web
-    name: web3-music-backend
-    runtime: node
-    plan: starter
-    rootDir: ./backend
-    buildCommand: "yarn install && yarn build"
-    startCommand: "yarn start"
-    healthCheckPath: /
-    envVars:
-      - key: NODE_VERSION
-        value: 18.17.1
-      - key: DATABASE_URL
-        value: "file:/var/data/db.json"
-    disk:
-      name: data
-      mountPath: /var/data
-      sizeGB: 1
-  - type: web
     name: web3-music-frontend
     runtime: static
-    buildCommand: "yarn install && yarn build"
+    rootDir: .
+    buildFilter:
+      paths:
+      - "src/**/*.ts"
+      - "src/**/*.tsx"
+      - "package.json"
+    buildCommand: "npm install && npm run build"
     staticPublishPath: ./dist
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
+  - type: web
+    name: web3-music-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildFilter:
+      paths:
+        - "src/index.ts"
+        - "package.json"
+    buildCommand: "npm install && npm run build"
+    startCommand: "node dist/index.js"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - fromGroup: pinata-jwt
+      - key: RENDER_DISK_MOUNT_PATH
+        value: /var/data
+    disk:
+      name: data-disk
+      mountPath: /var/data
+      sizeGB: 1 
