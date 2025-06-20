@@ -1,8 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import fileUpload from 'express-fileupload';
-import { UploadedFile } from 'express-fileupload';
+import fileUpload, { UploadedFile } from 'express-fileupload';
 import axios from 'axios';
 import FormData from 'form-data';
 import path from 'path';
@@ -17,8 +16,21 @@ import { ethers } from 'ethers';
 dotenv.config();
 
 const app = express();
-app.use(cors());
-app.use(fileUpload()); // Use express-fileupload middleware
+
+// Middleware setup
+app.use(cors({
+    origin: ['http://localhost:3000', 'https://axep-frontend.onrender.com', 'https://www.axepvoting.io'],
+    credentials: true
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(fileUpload({
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+    useTempFiles: true,
+    tempFileDir: '/tmp/'
+}) as any); // Type assertion to bypass TypeScript error
+app.set('trust proxy', true);
+
 const port = parseInt(process.env.PORT || '3001', 10);
 const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs/";
 
@@ -83,9 +95,7 @@ const initializeDatabase = async () => {
     }
 };
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.set('trust proxy', true);
+
 
 // --- Test Route ---
 app.get('/', (req: Request, res: Response) => {
