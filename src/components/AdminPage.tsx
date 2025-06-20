@@ -146,10 +146,9 @@ const AdminPage: React.FC = () => {
     const handleUpdateShareStatus = async (id: string, status: 'verified' | 'rejected') => {
         setIsUpdatingShare(prev => ({ ...prev, [id]: true }));
         try {
-            await api.patch(`/admin/share-submissions/${id}`, { status });
-            setSnackbar({ open: true, message: `Share status updated to ${status}.` });
-            // Refresh the data to show the new status
-            setShareSubmissions(prev => prev.map(s => s.id === id ? { ...s, status } : s));
+            await api.patch(`/admin/shares/${id}`, { status });
+            setSnackbar({ open: true, message: `Share submission status updated to ${status}.` });
+            fetchAllData();
         } catch (err) {
             console.error(`Error updating share ${id}`, err);
             setSnackbar({ open: true, message: `Failed to update share status.` });
