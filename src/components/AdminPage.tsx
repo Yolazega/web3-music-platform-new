@@ -86,7 +86,7 @@ const AdminPage: React.FC = () => {
             const [submissionsRes, votesRes, shareSubmissionsRes] = await Promise.all([
                 api.get('/admin/submissions'),
                 api.get('/admin/votes'),
-                api.get('/admin/share-submissions'),
+                api.get('/admin/shares'),
             ]);
             setSubmissions(submissionsRes.data.sort((a: Track, b: Track) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
             setVotes(votesRes.data);
