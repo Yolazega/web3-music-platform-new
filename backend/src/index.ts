@@ -327,6 +327,63 @@ app.post('/admin/votes/clear', async (req, res) => {
     }
 });
 
+// Get all shares for admin
+app.get('/admin/shares', async (req, res) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        
+        // Transform shares to include track information
+        const sharesWithTrackInfo = db.shares.map(share => {
+            const track = db.tracks.find(t => t.onChainId === share.trackId);
+            return {
+                ...share,
+                track: track ? {
+                    title: track.title,
+                    artist: track.artist
+                } : {
+                    title: 'Unknown Track',
+                    artist: 'Unknown Artist'
+                }
+            };
+        });
+        
+        res.json(sharesWithTrackInfo);
+    } catch (error) {
+        console.error('Error fetching shares for admin:', error);
+        res.status(500).json({ error: 'Failed to fetch shares.' });
+    }
+});
+
+// Update share status
+app.patch('/admin/shares/:id', async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || !['verified', 'rejected'].includes(status)) {
+        return res.status(400).json({ error: 'Invalid status provided. Must be verified or rejected.' });
+    }
+
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const shareIndex = db.shares.findIndex((s: Share) => s.id === id);
+
+        if (shareIndex === -1) {
+            return res.status(404).json({ error: 'Share not found.' });
+        }
+        
+        db.shares[shareIndex].status = status;
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+        
+        res.json({ 
+            message: `Share status updated to ${status}.`, 
+            share: db.shares[shareIndex] 
+        });
+    } catch (error) {
+        console.error('Error updating share status:', error);
+        res.status(500).json({ error: 'Failed to update share status.' });
+    }
+});
+
 // --- Server Initialization ---
 const startServer = async () => {
     await initializeDatabase();
