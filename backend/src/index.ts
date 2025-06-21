@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getCurrentWeekNumber, isSubmissionPeriodOver } from './time';
 import { uploadToPinata } from './pinata';
 import { ethers } from 'ethers';
+import axios from 'axios';
 
 dotenv.config();
 
@@ -454,6 +455,39 @@ app.patch('/admin/shares/:id', async (req, res) => {
     } catch (error) {
         console.error('Error updating share status:', error);
         res.status(500).json({ error: 'Failed to update share status.' });
+    }
+});
+
+// Health check for Pinata configuration
+app.get('/health/pinata', async (req, res) => {
+    try {
+        const PINATA_JWT = process.env.PINATA_JWT;
+        if (!PINATA_JWT) {
+            return res.status(500).json({ 
+                error: 'Pinata JWT not configured',
+                configured: false 
+            });
+        }
+
+        // Test Pinata API access
+        const response = await axios.get('https://api.pinata.cloud/data/testAuthentication', {
+            headers: {
+                'Authorization': `Bearer ${PINATA_JWT}`
+            }
+        });
+
+        res.json({ 
+            message: 'Pinata configuration is working',
+            configured: true,
+            pinataResponse: response.data
+        });
+    } catch (error) {
+        console.error('Pinata health check failed:', error);
+        res.status(500).json({ 
+            error: 'Pinata authentication failed',
+            configured: !!process.env.PINATA_JWT,
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
     }
 });
 
