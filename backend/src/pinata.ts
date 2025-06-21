@@ -80,8 +80,8 @@ export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
                 ...formData.getHeaders(),
                 'Authorization': `Bearer ${PINATA_JWT}`
             },
-            timeout: 120000, // 2 minute timeout for 90-second videos
-            maxContentLength: 30 * 1024 * 1024, // 30MB max for 90-second videos
+            timeout: 300000, // 5 minute timeout for high-quality videos
+            maxContentLength: 500 * 1024 * 1024, // 500MB max for high-quality 90-second videos
         });
 
         console.log('Pinata response status:', response.status);

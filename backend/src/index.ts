@@ -7,6 +7,7 @@ import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { getCurrentWeekNumber, isSubmissionPeriodOver } from './time';
 import { uploadToPinata } from './pinata';
+import { validateVideoDuration } from './videoUtils';
 import { ethers } from 'ethers';
 import axios from 'axios';
 import rateLimit from 'express-rate-limit';
@@ -79,21 +80,21 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 
-app.use(express.json({ limit: '50mb' })); // Optimized for 90-second videos
-app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Optimized for 90-second videos
+app.use(express.json({ limit: '500mb' })); // Allows high-quality 90-second videos up to 4K
+app.use(express.urlencoded({ extended: true, limit: '500mb' })); // Allows high-quality 90-second videos up to 4K
 
 // Enhanced file upload configuration with security measures
 app.use(fileUpload({
     limits: { 
-        fileSize: 30 * 1024 * 1024, // 30MB limit (optimized for 90-second videos)
+        fileSize: 500 * 1024 * 1024, // 500MB limit (allows 4K quality 90-second videos)
         files: 5, // Maximum 5 files per request
     },
     useTempFiles: true,
     tempFileDir: '/tmp/',
     createParentPath: true,
     abortOnLimit: false, // Let our custom handler deal with size limits
-    responseOnLimit: 'File size limit exceeded - maximum 30MB per file for 90-second videos',
-    uploadTimeout: 10 * 60 * 1000, // 10 minute timeout (sufficient for 90-second videos)
+    responseOnLimit: 'File size limit exceeded - maximum 500MB per file. Videos must be 90 seconds or less.',
+    uploadTimeout: 15 * 60 * 1000, // 15 minute timeout for high-quality videos
     // Security: Prevent file path traversal
     safeFileNames: true,
     preserveExtension: true,
@@ -119,7 +120,7 @@ app.use('/upload', (err: any, req: any, res: any, next: any) => {
     if (err.type === 'entity.too.large' || err.status === 413) {
         console.error('Payload too large error:', err);
         return res.status(413).json({ 
-            error: 'File too large. Maximum sizes: 10MB for images, 30MB for 90-second videos. Please compress your files and try again.' 
+            error: 'File too large. Maximum sizes: 10MB for images, 500MB for videos. Videos must be 90 seconds or less. Please compress your files and try again.' 
         });
     }
     next(err);
@@ -387,12 +388,25 @@ app.post('/upload', uploadLimiter, async (req, res) => {
         const videoValidation = await validateUploadedFile(
             videoFile, 
             ['video/mp4', 'video/quicktime'], 
-            30 * 1024 * 1024 // 30MB for 90-second videos
+            500 * 1024 * 1024 // 500MB for high-quality 90-second videos
         );
         
         if (!videoValidation.valid) {
             return res.status(400).json({ error: `Video validation failed: ${videoValidation.error}` });
         }
+
+        // CRITICAL: Validate video duration (90 seconds max)
+        console.log('Validating video duration...');
+        const durationValidation = await validateVideoDuration(videoFile.tempFilePath!, 90);
+        
+        if (!durationValidation.valid) {
+            return res.status(400).json({ 
+                error: `Video duration validation failed: ${durationValidation.error}`,
+                duration: durationValidation.duration 
+            });
+        }
+        
+        console.log(`Video duration validation passed: ${Math.round(durationValidation.duration || 0)}s`);
 
         console.log('File validation passed');
         console.log('File details:', {
@@ -505,7 +519,7 @@ app.post('/upload', uploadLimiter, async (req, res) => {
             }
             if (error.message.includes('limit') || error.message.includes('size')) {
                 return res.status(413).json({ 
-                    error: 'File too large. Maximum sizes: 10MB for images, 30MB for 90-second videos.' 
+                    error: 'File too large. Maximum sizes: 10MB for images, 500MB for 90-second videos.' 
                 });
             }
         }
