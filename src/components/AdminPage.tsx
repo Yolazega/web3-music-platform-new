@@ -6,11 +6,11 @@ import {
     CircularProgress, Card, CardContent, Grid, Alert, Box, Typography, Link, Snackbar
 } from '@mui/material';
 import { useWriteContract, useAccount } from 'wagmi';
-import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI, AMOY_RPC_URL } from '../config';
+import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from '../config';
 import { ethers } from 'ethers';
-import { createPublicClient, http, parseEventLogs } from 'viem';
+import { parseEventLogs } from 'viem';
 import { readContract } from 'viem/actions';
-import { polygonAmoy } from 'viem/chains';
+import { publicClient } from '../client';
 
 interface ShareSubmission {
     id: string;
@@ -26,11 +26,7 @@ interface ShareSubmission {
     }
 }
 
-// --- viem Public Client Setup ---
-const publicClient = createPublicClient({
-    chain: polygonAmoy,
-    transport: http(AMOY_RPC_URL)
-});
+// Using shared publicClient with fallback RPC configuration
 
 const AdminPage: React.FC = () => {
     const [submissions, setSubmissions] = useState<Track[]>([]);
