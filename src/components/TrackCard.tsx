@@ -12,6 +12,7 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [voteCount, setVoteCount] = useState<number>(track.votes);
+    const [imageError, setImageError] = useState(false);
     const { address, isConnected } = useAccount();
 
     const handleVote = async () => {
@@ -39,14 +40,28 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
         setFeedback(null);
     };
 
+    const handleImageError = () => {
+        setImageError(true);
+    };
+
+    // Determine the image source with fallback
+    const imageSrc = imageError || !track.coverImageUrl 
+        ? 'https://placehold.co/400x200/333/fff?text=No+Image' 
+        : track.coverImageUrl;
+
     return (
         <>
             <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
                 <CardMedia
                     component="img"
                     height="200"
-                    image={track.coverImageUrl}
+                    image={imageSrc}
                     alt={`Cover for ${track.title}`}
+                    onError={handleImageError}
+                    sx={{
+                        objectFit: 'cover',
+                        backgroundColor: '#f5f5f5'
+                    }}
                 />
                 <CardContent sx={{ flexGrow: 1 }}>
                     <Typography gutterBottom variant="h5" component="h2">
@@ -55,9 +70,18 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
                     <Typography variant="body2" color="text.secondary">
                         By: {track.artist}
                     </Typography>
-                    <Link href={track.videoUrl} target="_blank" rel="noopener noreferrer" sx={{ mt: 1, display: 'block' }}>
-                        Watch Video
-                    </Link>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Genre: {track.genre}
+                    </Typography>
+                    {track.videoUrl ? (
+                        <Link href={track.videoUrl} target="_blank" rel="noopener noreferrer" sx={{ mt: 1, display: 'block' }}>
+                            🎵 Watch Video
+                        </Link>
+                    ) : (
+                        <Typography variant="body2" color="text.disabled" sx={{ mt: 1 }}>
+                            Video not available
+                        </Typography>
+                    )}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
                         <Button 
                             variant="contained" 
