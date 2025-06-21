@@ -191,9 +191,21 @@ const AdminPage: React.FC = () => {
             return;
         }
         setIsPublishing(true);
-        setSnackbar({ open: true, message: "1/4: Preparing track data..." });
+        setSnackbar({ open: true, message: "1/6: Preparing track data..." });
 
         try {
+            // First, get the official genres from the contract
+            setSnackbar({ open: true, message: "2/6: Validating genres against contract..." });
+            
+            const officialGenres = await publicClient.readContract({
+                address: AXEP_VOTING_CONTRACT_ADDRESS,
+                abi: AXEP_VOTING_CONTRACT_ABI,
+                functionName: 'getOfficialGenres',
+            }) as string[];
+
+            console.log('Official genres from contract:', officialGenres);
+
+            // Validate data before sending to contract
             const trackData = {
                 artistWallets: tracksToPublish.map(t => t.artistWallet as `0x${string}`),
                 artistNames: tracksToPublish.map(t => t.artist),
@@ -202,8 +214,69 @@ const AdminPage: React.FC = () => {
                 videoUrls: tracksToPublish.map(t => t.videoUrl || ''),
                 coverImageUrls: tracksToPublish.map(t => t.coverImageUrl || ''),
             };
+
+            // Log data for debugging
+            console.log('Track data to be sent to contract:', trackData);
             
-            setSnackbar({ open: true, message: "2/4: Please approve the transaction in your wallet..." });
+            // Validate that all arrays have the same length
+            const lengths = [
+                trackData.artistWallets.length,
+                trackData.artistNames.length,
+                trackData.trackTitles.length,
+                trackData.genres.length,
+                trackData.videoUrls.length,
+                trackData.coverImageUrls.length
+            ];
+            
+            if (new Set(lengths).size !== 1) {
+                throw new Error(`Array length mismatch: ${lengths.join(', ')}`);
+            }
+
+            // Validate wallet addresses
+            for (const wallet of trackData.artistWallets) {
+                if (!wallet || !wallet.startsWith('0x') || wallet.length !== 42) {
+                    throw new Error(`Invalid wallet address: ${wallet}`);
+                }
+            }
+
+            // Validate required fields and genres
+            for (let i = 0; i < trackData.artistNames.length; i++) {
+                if (!trackData.artistNames[i]) throw new Error(`Missing artist name at index ${i}`);
+                if (!trackData.trackTitles[i]) throw new Error(`Missing track title at index ${i}`);
+                if (!trackData.genres[i]) throw new Error(`Missing genre at index ${i}`);
+                if (!trackData.videoUrls[i]) throw new Error(`Missing video URL at index ${i}`);
+                if (!trackData.coverImageUrls[i]) throw new Error(`Missing cover image URL at index ${i}`);
+                
+                // Validate genre against contract
+                if (!officialGenres.includes(trackData.genres[i])) {
+                    throw new Error(`Invalid genre "${trackData.genres[i]}" at index ${i}. Valid genres: ${officialGenres.join(', ')}`);
+                }
+            }
+
+            setSnackbar({ open: true, message: "3/6: Simulating transaction..." });
+
+            // First simulate the transaction to catch errors early
+            try {
+                await publicClient.simulateContract({
+                    address: AXEP_VOTING_CONTRACT_ADDRESS,
+                    abi: AXEP_VOTING_CONTRACT_ABI,
+                    functionName: 'batchRegisterAndUpload',
+                    args: [
+                        trackData.artistWallets,
+                        trackData.artistNames,
+                        trackData.trackTitles,
+                        trackData.genres,
+                        trackData.videoUrls,
+                        trackData.coverImageUrls,
+                    ],
+                    account: userAddress,
+                });
+            } catch (simulationError: any) {
+                console.error('Contract simulation failed:', simulationError);
+                throw new Error(`Contract simulation failed: ${simulationError.shortMessage || simulationError.message}`);
+            }
+            
+            setSnackbar({ open: true, message: "4/6: Please approve the transaction in your wallet..." });
 
             const hash = await writeContractAsync({
                 address: AXEP_VOTING_CONTRACT_ADDRESS,
@@ -217,9 +290,10 @@ const AdminPage: React.FC = () => {
                     trackData.videoUrls,
                     trackData.coverImageUrls,
                 ],
+                gas: BigInt(5000000), // Increase gas limit further for batch operations
             });
 
-            setSnackbar({ open: true, message: `3/4: Transaction sent! Waiting for confirmation...` });
+            setSnackbar({ open: true, message: `5/6: Transaction sent! Waiting for confirmation...` });
 
             const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
@@ -236,7 +310,7 @@ const AdminPage: React.FC = () => {
                  return;
             }
 
-            setSnackbar({ open: true, message: `4/4: Confirmed! Syncing ${trackUploadedLogs.length} tracks with backend...` });
+            setSnackbar({ open: true, message: `6/6: Confirmed! Syncing ${trackUploadedLogs.length} tracks with backend...` });
             
             const updatePromises = trackUploadedLogs.map(async (log: any) => {
                 const coverUrl = log.args.coverImageUrl;
@@ -256,11 +330,37 @@ const AdminPage: React.FC = () => {
             fetchAllData();
             
         } catch (err: any) {
-            const errorMsg = err.response?.data?.error || err.shortMessage || err.message || "An error occurred during publishing.";
-            const errorDetails = err.response?.data?.details;
-            const displayError = errorDetails ? `${errorMsg} ${errorDetails}` : errorMsg;
-            setSnackbar({ open: true, message: `Error: ${displayError}` });
-            console.error(err);
+            console.error('Full error object:', err);
+            
+            let errorMsg = "An error occurred during publishing.";
+            
+            // Handle different types of errors
+            if (err.message?.includes('User rejected')) {
+                errorMsg = "Transaction was rejected by user.";
+            } else if (err.message?.includes('insufficient funds')) {
+                errorMsg = "Insufficient funds for gas fees.";
+            } else if (err.message?.includes('Array length mismatch')) {
+                errorMsg = err.message;
+            } else if (err.message?.includes('Invalid wallet address')) {
+                errorMsg = err.message;
+            } else if (err.message?.includes('Missing')) {
+                errorMsg = err.message;
+            } else if (err.message?.includes('Invalid genre')) {
+                errorMsg = err.message;
+            } else if (err.message?.includes('Contract simulation failed')) {
+                errorMsg = err.message;
+            } else if (err.shortMessage) {
+                errorMsg = err.shortMessage;
+            } else if (err.message) {
+                errorMsg = err.message;
+            } else if (err.response?.data?.error) {
+                errorMsg = err.response.data.error;
+                if (err.response.data.details) {
+                    errorMsg += ` - ${err.response.data.details}`;
+                }
+            }
+            
+            setSnackbar({ open: true, message: `Error: ${errorMsg}` });
         } finally {
             setIsPublishing(false);
         }

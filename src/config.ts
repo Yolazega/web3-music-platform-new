@@ -2,7 +2,15 @@ export const AXEP_VOTING_CONTRACT_ADDRESS = "0x83072BC70659AB6aCcd0A46C05bF2748F
 export const AXP_TOKEN_CONTRACT_ADDRESS = '0xa1edD20366dbAc7341DE5fdb9FE1711Fb9EAD4d4';
 export const AMOY_CHAIN_ID = '0x13882';
 
-export const AMOY_RPC_URL = 'https://rpc-amoy.polygon.technology/';
+// Multiple RPC endpoints for better reliability
+export const AMOY_RPC_URLS = [
+    'https://rpc-amoy.polygon.technology/',
+    'https://polygon-amoy.drpc.org',
+    'https://polygon-amoy-bor-rpc.publicnode.com',
+    'https://amoy.polygon.quiknode.pro/8b6b2f2c7b8a4c8e8e8e8e8e8e8e8e8e/'
+];
+
+export const AMOY_RPC_URL = AMOY_RPC_URLS[0]; // Keep for backward compatibility
 export const AXP_TOKEN_DECIMALS = 18;
 export const IPFS_GATEWAY_URL = 'https://gateway.pinata.cloud/ipfs/';
 
