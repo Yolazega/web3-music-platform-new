@@ -138,27 +138,63 @@ const dbPath = path.join(dataDir, 'db.json');
 
 // --- Enhanced Security Functions ---
 
-// File type validation using magic numbers
+// Enhanced file type validation using magic numbers
 const validateFileType = (buffer: Buffer, expectedTypes: string[]): boolean => {
-    const signatures: { [key: string]: number[] } = {
-        'image/jpeg': [0xFF, 0xD8, 0xFF],
-        'image/png': [0x89, 0x50, 0x4E, 0x47],
-        'image/gif': [0x47, 0x49, 0x46],
-        'video/mp4': [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // Some MP4 files
-        'video/quicktime': [0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70], // MOV files
+    const signatures: { [key: string]: number[][] } = {
+        'image/jpeg': [[0xFF, 0xD8, 0xFF]],
+        'image/png': [[0x89, 0x50, 0x4E, 0x47]],
+        'image/gif': [[0x47, 0x49, 0x46]],
+        // MP4 files have multiple possible signatures
+        'video/mp4': [
+            [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // ftyp box at offset 4
+            [0x00, 0x00, 0x00, 0x1C, 0x66, 0x74, 0x79, 0x70], // ftyp box at offset 4
+            [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70], // ftyp box at offset 4
+            [0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70], // ftyp box at offset 4
+            [0x66, 0x74, 0x79, 0x70], // Just look for 'ftyp' anywhere in first 32 bytes
+        ],
+        // MOV files (QuickTime) also have multiple signatures
+        'video/quicktime': [
+            [0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70], // ftyp box
+            [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // ftyp box
+            [0x00, 0x00, 0x00, 0x1C, 0x66, 0x74, 0x79, 0x70], // ftyp box
+            [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70], // ftyp box
+            [0x66, 0x74, 0x79, 0x70], // Just look for 'ftyp' anywhere in first 32 bytes
+        ],
     };
 
     for (const type of expectedTypes) {
-        const signature = signatures[type];
-        if (signature && buffer.length >= signature.length) {
-            let matches = true;
-            for (let i = 0; i < signature.length; i++) {
-                if (buffer[i] !== signature[i]) {
-                    matches = false;
-                    break;
+        const typeSignatures = signatures[type];
+        if (!typeSignatures) continue;
+
+        for (const signature of typeSignatures) {
+            // For video files, check in first 32 bytes (more flexible)
+            const searchLength = type.startsWith('video/') ? Math.min(32, buffer.length) : signature.length;
+            
+            if (type.startsWith('video/') && signature.length === 4) {
+                // For the 'ftyp' signature, search in first 32 bytes
+                for (let offset = 0; offset <= searchLength - signature.length; offset++) {
+                    let matches = true;
+                    for (let i = 0; i < signature.length; i++) {
+                        if (buffer[offset + i] !== signature[i]) {
+                            matches = false;
+                            break;
+                        }
+                    }
+                    if (matches) return true;
+                }
+            } else {
+                // For other signatures, check at specific offset
+                if (buffer.length >= signature.length) {
+                    let matches = true;
+                    for (let i = 0; i < signature.length; i++) {
+                        if (buffer[i] !== signature[i]) {
+                            matches = false;
+                            break;
+                        }
+                    }
+                    if (matches) return true;
                 }
             }
-            if (matches) return true;
         }
     }
     return false;
@@ -223,10 +259,17 @@ const validateUploadedFile = async (file: UploadedFile, allowedTypes: string[], 
             return { valid: false, error: 'Unable to read file data' };
         }
 
-        // Validate file signature
+        // Validate file signature with debug info
+        console.log(`Validating file signature for ${file.name} (${file.mimetype})`);
+        console.log(`File size: ${buffer.length} bytes`);
+        console.log(`First 32 bytes:`, Array.from(buffer.slice(0, 32)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '));
+        
         if (!validateFileType(buffer, [file.mimetype])) {
+            console.error(`File signature validation failed for ${file.name}`);
             return { valid: false, error: 'File content does not match declared type' };
         }
+        
+        console.log(`File signature validation passed for ${file.name}`);
 
         return { valid: true };
     } catch (error) {
