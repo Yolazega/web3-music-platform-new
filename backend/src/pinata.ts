@@ -22,17 +22,45 @@ export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
     }
 
     console.log(`Starting Pinata upload for file: ${file.name} (${file.size} bytes, ${file.mimetype})`);
-    console.log(`File data type: ${typeof file.data}, isBuffer: ${Buffer.isBuffer(file.data)}`);
-    console.log(`File data length: ${file.data ? file.data.length : 'undefined'}`);
     
-    // Log first few bytes of file content for debugging
-    if (file.data && file.data.length > 0) {
-        const preview = file.data.slice(0, Math.min(50, file.data.length)).toString();
+    // CRITICAL FIX: Handle useTempFiles=true case
+    let fileBuffer: Buffer;
+    
+    if (file.tempFilePath) {
+        // When useTempFiles=true, file.data is undefined and we need to read from tempFilePath
+        console.log(`Reading file from temp path: ${file.tempFilePath}`);
+        try {
+            fileBuffer = fs.readFileSync(file.tempFilePath);
+            console.log(`Successfully read ${fileBuffer.length} bytes from temp file`);
+        } catch (error) {
+            console.error('Error reading temp file:', error);
+            throw new Error(`Failed to read temporary file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    } else if (file.data && Buffer.isBuffer(file.data)) {
+        // When useTempFiles=false, file.data contains the buffer
+        console.log(`Using file data buffer directly (${file.data.length} bytes)`);
+        fileBuffer = file.data;
+    } else {
+        console.error('No valid file data found:', {
+            hasData: !!file.data,
+            dataType: typeof file.data,
+            isBuffer: file.data ? Buffer.isBuffer(file.data) : false,
+            hasTempPath: !!file.tempFilePath,
+            tempPath: file.tempFilePath
+        });
+        throw new Error(`File ${file.name} has no accessible data`);
+    }
+
+    // Log first few bytes for debugging (but not for binary files)
+    if (fileBuffer.length > 0 && file.mimetype?.startsWith('text/')) {
+        const preview = fileBuffer.slice(0, Math.min(50, fileBuffer.length)).toString();
         console.log(`File content preview: ${preview}`);
+    } else {
+        console.log(`Binary file detected (${file.mimetype}), skipping content preview`);
     }
 
     // Validate file
-    if (!file.data || file.size === 0) {
+    if (!fileBuffer || fileBuffer.length === 0) {
         throw new Error(`File ${file.name} is empty or has no data`);
     }
 
@@ -40,7 +68,7 @@ export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
     const formData = new FormData();
     
     // Use the file buffer from express-fileupload
-    formData.append('file', file.data, {
+    formData.append('file', fileBuffer, {
         filename: file.name,
         contentType: file.mimetype
     });
