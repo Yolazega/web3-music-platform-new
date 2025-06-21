@@ -472,29 +472,61 @@ app.post('/upload', uploadLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Video file processing error: no temporary file path or data available' });
         }
 
-        // Handle different tempFilePath scenarios
+        // Handle different tempFilePath scenarios with comprehensive fallback
         let videoFilePath: string;
         
-        if (typeof videoFile.tempFilePath === 'string' && videoFile.tempFilePath.trim() !== '') {
-            videoFilePath = videoFile.tempFilePath;
-            console.log('Using existing tempFilePath:', videoFilePath);
-        } else {
-            // Fallback: create our own temp file
-            console.log('tempFilePath not available or invalid, creating manual temp file');
-            console.log('tempFilePath value:', videoFile.tempFilePath);
-            console.log('tempFilePath type:', typeof videoFile.tempFilePath);
+        console.log('=== DEBUGGING tempFilePath ===');
+        console.log('videoFile.tempFilePath type:', typeof videoFile.tempFilePath);
+        console.log('videoFile.tempFilePath value:', JSON.stringify(videoFile.tempFilePath));
+        console.log('videoFile.tempFilePath constructor:', (videoFile.tempFilePath as any)?.constructor?.name);
+        console.log('videoFile.data available:', !!videoFile.data);
+        console.log('videoFile.data type:', typeof videoFile.data);
+        console.log('videoFile.data length:', videoFile.data ? videoFile.data.length : 'N/A');
+        
+        // Try to use tempFilePath if it's a valid string
+        let tempPathIsValid = false;
+        if (videoFile.tempFilePath && typeof videoFile.tempFilePath === 'string' && videoFile.tempFilePath.trim() !== '') {
+            try {
+                // Test if the file actually exists at this path
+                if (await fs.access(videoFile.tempFilePath).then(() => true).catch(() => false)) {
+                    videoFilePath = videoFile.tempFilePath;
+                    tempPathIsValid = true;
+                    console.log('Using existing valid tempFilePath:', videoFilePath);
+                } else {
+                    console.log('tempFilePath points to non-existent file:', videoFile.tempFilePath);
+                }
+            } catch (error) {
+                console.log('Error checking tempFilePath validity:', error);
+            }
+        }
+        
+        // If tempFilePath is not valid, create our own temp file
+        if (!tempPathIsValid) {
+            console.log('Creating manual temp file because tempFilePath is invalid or inaccessible');
             
-            if (!videoFile.data) {
-                return res.status(400).json({ error: 'Video file processing error: no file data available' });
+            if (!videoFile.data || !Buffer.isBuffer(videoFile.data)) {
+                console.error('No valid file data available for manual temp file creation');
+                return res.status(400).json({ error: 'Video file processing error: no valid file data available' });
             }
             
-            const tempFileName = `video_${Date.now()}_${Math.random().toString(36).substring(7)}.tmp`;
+            const tempFileName = `video_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`;
             videoFilePath = path.join(tempDir, tempFileName);
             
             try {
                 await fs.writeFile(videoFilePath, videoFile.data);
-                console.log('Created manual temp file:', videoFilePath);
+                console.log('Successfully created manual temp file:', videoFilePath);
                 tempFiles.push(videoFilePath); // Add to cleanup list
+                
+                // Verify the file was created and has content
+                const stats = await fs.stat(videoFilePath);
+                console.log('Manual temp file stats:', {
+                    size: stats.size,
+                    exists: true
+                });
+                
+                if (stats.size === 0) {
+                    throw new Error('Created temp file is empty');
+                }
             } catch (error) {
                 console.error('Failed to create manual temp file:', error);
                 return res.status(500).json({ error: 'Video file processing error: failed to create temporary file' });

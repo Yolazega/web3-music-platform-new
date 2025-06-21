@@ -13,14 +13,31 @@ export interface VideoMetadata {
 export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata> => {
     return new Promise((resolve, reject) => {
         console.log(`Starting ffprobe for file: ${filePath}`);
+        console.log(`getVideoMetadata - filePath type: ${typeof filePath}`);
+        console.log(`getVideoMetadata - filePath value: ${JSON.stringify(filePath)}`);
+        console.log(`getVideoMetadata - filePath constructor: ${(filePath as any)?.constructor?.name}`);
         console.log(`Using ffprobe binary: ${ffprobeStatic}`);
+        
+        // CRITICAL: Validate filePath before using with spawn
+        if (typeof filePath !== 'string') {
+            console.error('CRITICAL ERROR in getVideoMetadata: filePath is not a string!', {
+                type: typeof filePath,
+                value: filePath,
+                constructor: (filePath as any)?.constructor?.name
+            });
+            reject(new Error(`Invalid file path type in getVideoMetadata: expected string, got ${typeof filePath}`));
+            return;
+        }
+        
+        const stringPath = String(filePath);
+        console.log(`Using string path for ffprobe: ${stringPath}`);
         
         const ffprobe = spawn(ffprobeStatic, [
             '-v', 'quiet',
             '-print_format', 'json',
             '-show_format',
             '-show_streams',
-            filePath
+            stringPath  // Use the validated string path
         ], {
             timeout: 30000 // 30 second timeout
         });
