@@ -51,11 +51,12 @@ export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
                 ...formData.getHeaders(),
                 'Authorization': `Bearer ${PINATA_JWT}`
             },
-            timeout: 60000, // 60 second timeout
+            timeout: 180000, // 3 minute timeout for large files
             maxContentLength: 100 * 1024 * 1024, // 100MB max
         });
 
-        console.log('Pinata response:', response.data);
+        console.log('Pinata response status:', response.status);
+        console.log('Pinata response data:', JSON.stringify(response.data, null, 2));
 
         const ipfsHash = response.data.IpfsHash;
         if (!ipfsHash) {
@@ -66,13 +67,9 @@ export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
         const fullUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
         console.log(`File ${file.name} uploaded successfully to: ${fullUrl}`);
         
-        // Test the URL to make sure it's accessible
-        try {
-            const testResponse = await axios.head(fullUrl, { timeout: 10000 });
-            console.log(`URL test successful for ${file.name}, status: ${testResponse.status}`);
-        } catch (testError) {
-            console.warn(`URL test failed for ${file.name}, but continuing:`, testError instanceof Error ? testError.message : 'Unknown error');
-        }
+        // Skip URL verification to avoid timeout issues
+        // The file should be available on IPFS within a few minutes
+        console.log(`IPFS Hash: ${ipfsHash}`);
         
         return fullUrl;
     } catch (error) {

@@ -8,17 +8,27 @@ const API_URL = import.meta.env.VITE_BACKEND_URL ||
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000, // 30 second timeout
+  timeout: 120000, // 2 minute timeout for file uploads
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add request interceptor for debugging (only in development)
+// Add request interceptor for debugging and special handling
 api.interceptors.request.use(
   (config) => {
+    // Increase timeout for file uploads
+    if (config.data instanceof FormData) {
+      config.timeout = 300000; // 5 minutes for file uploads
+      // Remove Content-Type header for FormData (let browser set it with boundary)
+      delete config.headers['Content-Type'];
+    }
+    
     if (!import.meta.env.PROD) {
       console.log('API Request:', config.method?.toUpperCase(), config.url);
+      if (config.data instanceof FormData) {
+        console.log('File upload detected, using extended timeout');
+      }
     }
     return config;
   },
@@ -38,6 +48,9 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Response Error:', error.response?.status, error.response?.data);
+    if (error.code === 'ECONNABORTED') {
+      console.error('Request timed out. File might be too large or connection is slow.');
+    }
     return Promise.reject(error);
   }
 );
