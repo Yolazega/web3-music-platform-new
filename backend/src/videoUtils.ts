@@ -17,6 +17,25 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
         console.log(`getVideoMetadata - filePath value: ${JSON.stringify(filePath)}`);
         console.log(`getVideoMetadata - filePath constructor: ${(filePath as any)?.constructor?.name}`);
         console.log(`Using ffprobe binary: ${ffprobeStatic}`);
+        console.log(`ffprobeStatic type: ${typeof ffprobeStatic}`);
+        console.log(`ffprobeStatic value: ${JSON.stringify(ffprobeStatic)}`);
+        console.log(`ffprobeStatic constructor: ${(ffprobeStatic as any)?.constructor?.name}`);
+        
+        // CRITICAL: Get the correct binary path
+        const ffprobePath = typeof ffprobeStatic === 'string' ? ffprobeStatic : (ffprobeStatic as any)?.path;
+        console.log(`ffprobePath extracted: ${ffprobePath}`);
+        console.log(`ffprobePath type: ${typeof ffprobePath}`);
+        
+        // CRITICAL: Validate ffprobePath is a string
+        if (typeof ffprobePath !== 'string') {
+            console.error('CRITICAL ERROR: ffprobePath is not a string!', {
+                type: typeof ffprobePath,
+                value: ffprobePath,
+                constructor: (ffprobePath as any)?.constructor?.name,
+                originalStatic: ffprobeStatic
+            });
+            return reject(new Error(`ffprobe binary path is not a string: ${typeof ffprobePath}`));
+        }
         
         // CRITICAL: Validate filePath before using with spawn
         if (typeof filePath !== 'string') {
@@ -40,7 +59,7 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
         
         console.log('Using final validated path with ffprobe:', finalPath);
         
-        const ffprobe = spawn(ffprobeStatic, [
+        const ffprobe = spawn(ffprobePath, [
             '-v', 'quiet',
             '-print_format', 'json',
             '-show_format',
