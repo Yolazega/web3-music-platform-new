@@ -89,7 +89,7 @@ app.use(cors({
         'X-File-Name'
     ],
     exposedHeaders: ['Content-Length', 'X-File-Name'],
-    optionsSuccessStatus: 200, // Support legacy browsers
+    optionsSuccessStatus: 200,
     preflightContinue: false
 }));
 
@@ -391,38 +391,30 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Explicit OPTIONS handler for upload route
 app.options('/upload', (req, res) => {
-    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
+    res.header('Access-Control-Allow-Origin', req.get('Origin') || 'https://www.axepvoting.io');
     res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
     res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Max-Age', '86400'); // 24 hours
+    res.header('Access-Control-Max-Age', '86400');
     res.sendStatus(200);
 });
 
-// Upload a new track with comprehensive security
-app.post('/upload', uploadLimiter, async (req, res) => {
-    const startTime = Date.now();
+// Upload a new track - SIMPLIFIED AND OPTIMIZED
+app.post('/upload', async (req, res) => {
     let tempFiles: string[] = [];
 
     try {
-        console.log('=== SECURE UPLOAD REQUEST ===');
-        console.log('Request received at:', new Date().toISOString());
-        console.log('IP Address:', req.ip);
-        console.log('User Agent:', req.get('User-Agent'));
+        // Basic request logging
+        console.log('Upload request received from:', req.ip);
 
+        // Check submission period in production
         if (process.env.NODE_ENV === 'production' && isSubmissionPeriodOver()) {
             return res.status(400).json({ error: 'The submission period for this week is over.' });
         }
 
-        // Enhanced input validation
-        const artist = sanitizeInput(req.body.artist, 50);
-        const title = sanitizeInput(req.body.title, 100);
-        const artistWallet = sanitizeInput(req.body.artistWallet, 42);
-        const genre = sanitizeInput(req.body.genre, 30);
-
-        console.log('Sanitized inputs:', { artist, title, artistWallet, genre });
-
         // Validate required fields
+        const { artist, title, artistWallet, genre } = req.body;
+        
         if (!artist || artist.length < 2) {
             return res.status(400).json({ error: 'Artist name must be at least 2 characters long.' });
         }
@@ -436,20 +428,15 @@ app.post('/upload', uploadLimiter, async (req, res) => {
             return res.status(400).json({ error: 'Invalid genre selected.' });
         }
         
+        // Validate files
         if (!req.files || Object.keys(req.files).length === 0) {
             return res.status(400).json({ error: 'No files were uploaded.' });
         }
-
-        console.log('Files received:', Object.keys(req.files));
 
         const coverImageFile = req.files.coverImageFile as UploadedFile;
         const videoFile = req.files.videoFile as UploadedFile;
 
         if (!coverImageFile || !videoFile) {
-            console.error('Missing files:', { 
-                hasCoverImage: !!coverImageFile, 
-                hasVideo: !!videoFile 
-            });
             return res.status(400).json({ error: 'Both cover image and video file are required.' });
         }
 
@@ -457,11 +444,11 @@ app.post('/upload', uploadLimiter, async (req, res) => {
         if (coverImageFile.tempFilePath) tempFiles.push(coverImageFile.tempFilePath);
         if (videoFile.tempFilePath) tempFiles.push(videoFile.tempFilePath);
 
-        // Enhanced file validation
+        // Simple file validation
         const imageValidation = await validateUploadedFile(
             coverImageFile, 
             ['image/jpeg', 'image/png', 'image/gif'], 
-            10 * 1024 * 1024 // 10MB for images
+            10 * 1024 * 1024 // 10MB
         );
         
         if (!imageValidation.valid) {
@@ -471,255 +458,97 @@ app.post('/upload', uploadLimiter, async (req, res) => {
         const videoValidation = await validateUploadedFile(
             videoFile, 
             ['video/mp4', 'video/quicktime'], 
-            500 * 1024 * 1024 // 500MB for high-quality 2-minute videos
+            500 * 1024 * 1024 // 500MB
         );
         
         if (!videoValidation.valid) {
             return res.status(400).json({ error: `Video validation failed: ${videoValidation.error}` });
         }
 
-        // CRITICAL: Validate video duration (2 minutes max)
-        console.log('Validating video duration...');
-        console.log('Video file object structure:', {
-            name: videoFile.name,
-            size: videoFile.size,
-            mimetype: videoFile.mimetype,
-            tempFilePath: videoFile.tempFilePath,
-            tempFilePathType: typeof videoFile.tempFilePath,
-            hasData: !!videoFile.data,
-            dataType: typeof videoFile.data,
-            keys: Object.keys(videoFile)
-        });
-        
-        if (!videoFile.tempFilePath && !videoFile.data) {
-            return res.status(400).json({ error: 'Video file processing error: no temporary file path or data available' });
-        }
-
-        // Handle different tempFilePath scenarios with comprehensive fallback
-        let videoFilePath: string;
-        
-        console.log('=== DEBUGGING tempFilePath ===');
-        console.log('videoFile.tempFilePath type:', typeof videoFile.tempFilePath);
-        console.log('videoFile.tempFilePath value:', JSON.stringify(videoFile.tempFilePath));
-        console.log('videoFile.tempFilePath constructor:', (videoFile.tempFilePath as any)?.constructor?.name);
-        console.log('videoFile.data available:', !!videoFile.data);
-        console.log('videoFile.data type:', typeof videoFile.data);
-        console.log('videoFile.data length:', videoFile.data ? videoFile.data.length : 'N/A');
-        
-        // Try to use tempFilePath if it's a valid string
-        let tempPathIsValid = false;
-        if (videoFile.tempFilePath && typeof videoFile.tempFilePath === 'string' && videoFile.tempFilePath.trim() !== '') {
-            try {
-                // Test if the file actually exists at this path
-                if (await fs.access(videoFile.tempFilePath).then(() => true).catch(() => false)) {
-                    videoFilePath = videoFile.tempFilePath;
-                    tempPathIsValid = true;
-                    console.log('Using existing valid tempFilePath:', videoFilePath);
-                } else {
-                    console.log('tempFilePath points to non-existent file:', videoFile.tempFilePath);
-                }
-            } catch (error) {
-                console.log('Error checking tempFilePath validity:', error);
-            }
-        }
-        
-        // If tempFilePath is not valid, create our own temp file
-        if (!tempPathIsValid) {
-            console.log('Creating manual temp file because tempFilePath is invalid or inaccessible');
-            
-            if (!videoFile.data || !Buffer.isBuffer(videoFile.data)) {
-                console.error('No valid file data available for manual temp file creation');
-                return res.status(400).json({ error: 'Video file processing error: no valid file data available' });
-            }
-            
-            const tempFileName = `video_${Date.now()}_${Math.random().toString(36).substring(7)}.mp4`;
+        // Simple video duration validation
+        let videoFilePath = videoFile.tempFilePath;
+        if (!videoFilePath && videoFile.data) {
+            // Create temp file if needed
+            const tempFileName = `video_${Date.now()}.mp4`;
             videoFilePath = path.join(tempDir, tempFileName);
-            
-            try {
-                await fs.writeFile(videoFilePath, videoFile.data);
-                console.log('Successfully created manual temp file:', videoFilePath);
-                tempFiles.push(videoFilePath); // Add to cleanup list
-                
-                // Verify the file was created and has content
-                const stats = await fs.stat(videoFilePath);
-                console.log('Manual temp file stats:', {
-                    size: stats.size,
-                    exists: true
-                });
-                
-                if (stats.size === 0) {
-                    throw new Error('Created temp file is empty');
-                }
-            } catch (error) {
-                console.error('Failed to create manual temp file:', error);
-                return res.status(500).json({ error: 'Video file processing error: failed to create temporary file' });
-            }
+            await fs.writeFile(videoFilePath, videoFile.data);
+            tempFiles.push(videoFilePath);
         }
-        
-        // CRITICAL DEBUG: Ensure videoFilePath is a string
-        console.log('=== CRITICAL DEBUG: videoFilePath validation ===');
-        console.log('videoFilePath value:', videoFilePath);
-        console.log('videoFilePath type:', typeof videoFilePath);
-        console.log('videoFilePath constructor:', (videoFilePath as any)?.constructor?.name);
-        console.log('videoFilePath toString():', String(videoFilePath));
-        
-        // Force conversion to string if needed
-        if (typeof videoFilePath !== 'string') {
-            console.error('CRITICAL ERROR: videoFilePath is not a string!', {
-                type: typeof videoFilePath,
-                value: videoFilePath,
-                constructor: (videoFilePath as any)?.constructor?.name
-            });
-            return res.status(500).json({ error: 'Video file processing error: invalid file path type' });
+
+        if (!videoFilePath) {
+            return res.status(400).json({ error: 'Video file processing error' });
         }
-        
-        // Ensure it's a non-empty string
-        if (!videoFilePath || videoFilePath.trim() === '') {
-            console.error('CRITICAL ERROR: videoFilePath is empty!');
-            return res.status(500).json({ error: 'Video file processing error: empty file path' });
-        }
-        
-        // FINAL SAFETY CHECK: Force string conversion and validation
-        const finalVideoPath = String(videoFilePath).trim();
-        if (!finalVideoPath || finalVideoPath === 'undefined' || finalVideoPath === 'null') {
-            console.error('CRITICAL ERROR: finalVideoPath is invalid!', {
-                original: videoFilePath,
-                converted: finalVideoPath
-            });
-            return res.status(500).json({ error: 'Video file processing error: invalid final file path' });
-        }
-        
-        console.log('videoFilePath validation passed, proceeding with duration validation');
-        console.log('Final path to be used:', finalVideoPath);
-        
-        const durationValidation = await validateVideoDuration(finalVideoPath, 120); // 2 minutes = 120 seconds
-        
+
+        const durationValidation = await validateVideoDuration(videoFilePath, 120); // 2 minutes
         if (!durationValidation.valid) {
-            return res.status(400).json({ 
-                error: `Video duration validation failed: ${durationValidation.error}`,
-                duration: durationValidation.duration 
-            });
-        }
-        
-        console.log(`Video duration validation passed: ${Math.round(durationValidation.duration || 0)}s`);
-
-        console.log('File validation passed');
-        console.log('File details:', {
-            coverImage: { name: coverImageFile.name, size: coverImageFile.size, type: coverImageFile.mimetype },
-            video: { name: videoFile.name, size: videoFile.size, type: videoFile.mimetype }
-        });
-        
-        const checksummedWallet = ethers.getAddress(artistWallet);
-
-        // Upload files separately with detailed logging and timing
-        console.log('=== STARTING SECURE FILE UPLOADS ===');
-        console.log(`Upload started at: ${new Date().toISOString()}`);
-        
-        console.log('Uploading video file to Pinata...');
-        const videoStartTime = Date.now();
-        const videoUrl = await uploadToPinata(videoFile);
-        const videoUploadTime = Date.now() - videoStartTime;
-        console.log(`Video uploaded successfully in ${videoUploadTime}ms:`, videoUrl);
-
-        console.log('Uploading cover image to Pinata...');
-        const imageStartTime = Date.now();
-        const coverImageUrl = await uploadToPinata(coverImageFile);
-        const imageUploadTime = Date.now() - imageStartTime;
-        console.log(`Cover image uploaded successfully in ${imageUploadTime}ms:`, coverImageUrl);
-        
-        console.log(`=== TOTAL UPLOAD TIME: ${videoUploadTime + imageUploadTime}ms ===`);
-
-        // Verify URLs are different (security check)
-        if (videoUrl === coverImageUrl) {
-            console.error('CRITICAL: Video and cover image have the same URL!', { videoUrl, coverImageUrl });
-            return res.status(500).json({ error: 'File upload error: Duplicate IPFS hashes detected' });
+            return res.status(400).json({ error: `Video duration validation failed: ${durationValidation.error}` });
         }
 
+        console.log('Starting file uploads to IPFS...');
+
+        // Upload files to IPFS
+        const [coverImageUrl, videoUrl] = await Promise.all([
+            uploadToPinata(coverImageFile),
+            uploadToPinata(videoFile)
+        ]);
+
+        console.log('IPFS uploads completed');
+
+        // Create track record
+        const trackId = uuidv4();
+        const weekNumber = getCurrentWeekNumber();
+        
         const newTrack: Track = {
-            id: uuidv4(),
-            title,
-            artist,
-            artistWallet: checksummedWallet,
+            id: trackId,
+            title: sanitizeInput(title, 100),
+            artist: sanitizeInput(artist, 50),
+            artistWallet: sanitizeInput(artistWallet, 42),
             filePath: '',
             ipfsHash: videoUrl.split('/').pop() || '',
-            genre,
+            genre: sanitizeInput(genre, 30),
             status: 'pending',
             votes: 0,
-            weekNumber: getCurrentWeekNumber(),
-            submittedAt: new Date().toISOString(),
-            coverImageUrl,
-            videoUrl,
+            weekNumber,
+            coverImageUrl: coverImageUrl,
+            videoUrl: videoUrl,
+            submittedAt: new Date().toISOString()
         };
 
-        console.log('Track object created:', {
-            id: newTrack.id,
-            coverImageUrl: newTrack.coverImageUrl,
-            videoUrl: newTrack.videoUrl
-        });
-
+        // Save to database
         const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
         db.tracks.push(newTrack);
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
-        // Clean up temp files
-        for (const tempFile of tempFiles) {
-            try {
-                await fs.unlink(tempFile);
-                console.log(`Cleaned up temp file: ${tempFile}`);
-            } catch (error) {
-                console.warn(`Failed to clean up temp file ${tempFile}:`, error);
-            }
-        }
+        console.log('Track saved successfully:', trackId);
 
-        const totalTime = Date.now() - startTime;
-        console.log(`Track saved to database successfully in ${totalTime}ms total`);
-        
-        res.status(201).json({ 
+        res.status(201).json({
             message: 'Track uploaded successfully.',
             track: {
                 id: newTrack.id,
                 title: newTrack.title,
                 artist: newTrack.artist,
                 genre: newTrack.genre,
-                status: newTrack.status
-            },
-            processingTime: totalTime
+                status: newTrack.status,
+                coverImageUrl: newTrack.coverImageUrl,
+                videoUrl: newTrack.videoUrl
+            }
         });
-    } catch (error) {
-        console.error('Error uploading track:', error);
-        
-        // Clean up temp files on error
+
+    } catch (error: any) {
+        console.error('Upload error:', error);
+        res.status(500).json({ 
+            error: 'Upload failed',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    } finally {
+        // Cleanup temp files
         for (const tempFile of tempFiles) {
             try {
                 await fs.unlink(tempFile);
-                console.log(`Cleaned up temp file after error: ${tempFile}`);
-            } catch (cleanupError) {
-                console.warn(`Failed to clean up temp file ${tempFile}:`, cleanupError);
+            } catch (error) {
+                console.error('Failed to cleanup temp file:', tempFile, error);
             }
         }
-        
-        if (error instanceof Error) {
-            if (error.message.includes('invalid address')) {
-                return res.status(400).json({ error: 'A valid, checksummed artist wallet address is required.' });
-            }
-            if (error.message.includes('timeout') || error.message.includes('ECONNABORTED')) {
-                return res.status(408).json({ 
-                    error: 'Upload timeout - your files may be too large or connection is slow. Please try again with smaller files.' 
-                });
-            }
-            if (error.message.includes('IPFS')) {
-                return res.status(503).json({ 
-                    error: 'IPFS upload service temporarily unavailable. Please try again in a few minutes.' 
-                });
-            }
-            if (error.message.includes('limit') || error.message.includes('size')) {
-                return res.status(413).json({ 
-                    error: 'File too large. Maximum sizes: 10MB for images, 500MB for 2-minute videos.' 
-                });
-            }
-        }
-        
-        res.status(500).json({ error: 'Failed to upload track.' });
     }
 });
 
