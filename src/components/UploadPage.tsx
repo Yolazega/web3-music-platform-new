@@ -27,39 +27,137 @@ const UploadPage: React.FC = () => {
     "Instrumental / Other"
   ];
   
+  // Enhanced file validation
+  const validateFile = (file: File, type: 'image' | 'video'): { valid: boolean; error?: string } => {
+    if (type === 'image') {
+      const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif'];
+      const maxImageSize = 10 * 1024 * 1024; // 10MB
+      
+      if (!allowedImageTypes.includes(file.type)) {
+        return { valid: false, error: 'Invalid image format. Please use JPEG, PNG, or GIF.' };
+      }
+      if (file.size > maxImageSize) {
+        return { valid: false, error: 'Image file too large. Maximum size is 10MB.' };
+      }
+      if (file.size < 1024) {
+        return { valid: false, error: 'Image file too small. Minimum size is 1KB.' };
+      }
+    } else {
+      const allowedVideoTypes = ['video/mp4', 'video/quicktime'];
+      const maxVideoSize = 100 * 1024 * 1024; // 100MB
+      
+      if (!allowedVideoTypes.includes(file.type)) {
+        return { valid: false, error: 'Invalid video format. Please use MP4 or MOV.' };
+      }
+      if (file.size > maxVideoSize) {
+        return { valid: false, error: 'Video file too large. Maximum size is 50MB.' };
+      }
+      if (file.size < 10240) {
+        return { valid: false, error: 'Video file too small. Minimum size is 10KB.' };
+      }
+    }
+
+    if (file.name.includes('..') || file.name.includes('/') || file.name.includes('\\')) {
+      return { valid: false, error: 'Invalid file name. Please rename your file.' };
+    }
+
+    return { valid: true };
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validation = validateFile(file, type);
+    if (!validation.valid) {
+      setFormError(validation.error || 'Invalid file');
+      e.target.value = '';
+      return;
+    }
+
+    if (type === 'image') {
+      setCoverImageFile(file);
+    } else {
+      setVideoFile(file);
+    }
+    setFormError(null);
+  };
+
   const handleSubmit = async () => {
     setFormError(null);
     setUploadProgress(null);
     setUploadSuccess(false);
 
-    // Simplified validation, no wallet checks needed
-    if (!artistName.trim()) { setFormError('Please enter your artist name.'); return; }
-    if (!trackTitle.trim()) { setFormError('Please enter a track title.'); return; }
-    if (!genre) { setFormError('Please select a genre.'); return; }
-    if (!artistWallet.trim() || !artistWallet.startsWith('0x')) { setFormError('Please enter a valid Polygon wallet address (starting with 0x).'); return; }
-    if (!coverImageFile) { setFormError('Please select a cover image file.'); return; }
-    if (!videoFile) { setFormError('Please select a video file.'); return; }
-    if (!isOwnerConfirmed) { setFormError('Please confirm you own the rights.'); return; }
+    // Enhanced validation
+    if (!artistName.trim() || artistName.trim().length < 2) {
+      setFormError('Artist name must be at least 2 characters long.');
+      return;
+    }
+    if (!trackTitle.trim() || trackTitle.trim().length < 2) {
+      setFormError('Track title must be at least 2 characters long.');
+      return;
+    }
+    if (!genre || !genres.includes(genre)) {
+      setFormError('Please select a valid genre.');
+      return;
+    }
+    if (!artistWallet.trim() || !artistWallet.startsWith('0x') || artistWallet.length !== 42) {
+      setFormError('Please enter a valid Polygon wallet address (42 characters starting with 0x).');
+      return;
+    }
+    if (!coverImageFile) {
+      setFormError('Please select a cover image file.');
+      return;
+    }
+    if (!videoFile) {
+      setFormError('Please select a video file.');
+      return;
+    }
+    if (!isOwnerConfirmed) {
+      setFormError('Please confirm you own the rights.');
+      return;
+    }
+
+    // Final file validation
+    const imageValidation = validateFile(coverImageFile, 'image');
+    if (!imageValidation.valid) {
+      setFormError(`Cover image: ${imageValidation.error}`);
+      return;
+    }
+
+    const videoValidation = validateFile(videoFile, 'video');
+    if (!videoValidation.valid) {
+      setFormError(`Video: ${videoValidation.error}`);
+      return;
+    }
     
     setIsUploading(true);
-    setUploadProgress('Uploading files to IPFS... This may take several minutes for large files.');
+    setUploadProgress('Preparing files for upload...');
 
-    // Create FormData to send files and text to the backend
     const formData = new FormData();
-    formData.append('artist', artistName);
-    formData.append('title', trackTitle);
+    formData.append('artist', artistName.trim());
+    formData.append('title', trackTitle.trim());
     formData.append('genre', genre);
-    formData.append('artistWallet', artistWallet);
+    formData.append('artistWallet', artistWallet.trim());
     formData.append('coverImageFile', coverImageFile);
     formData.append('videoFile', videoFile);
 
     try {
-        // Submit to backend
-        const response = await api.post('/upload', formData);
+        setUploadProgress('Uploading files to IPFS... This may take several minutes for large files.');
+        
+        const response = await api.post('/upload', formData, {
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(`Uploading... ${percentCompleted}% complete`);
+            }
+          }
+        });
 
         if (response.status === 201) {
             setUploadProgress('Upload complete! Your track is being processed.');
             setUploadSuccess(true);
+            
             // Reset form
             setArtistName('');
             setTrackTitle('');
@@ -68,10 +166,35 @@ const UploadPage: React.FC = () => {
             setCoverImageFile(null);
             setVideoFile(null);
             setIsOwnerConfirmed(false);
+            
+            // Clear file inputs
+            const imageInput = document.getElementById('coverImageFile') as HTMLInputElement;
+            const videoInput = document.getElementById('videoFile') as HTMLInputElement;
+            if (imageInput) imageInput.value = '';
+            if (videoInput) videoInput.value = '';
         }
     } catch (err: unknown) {
-        const error = err as { response?: { data?: { error?: string } }; message?: string };
-        const errorMsg = error.response?.data?.error || error.message || 'An error occurred during the upload process.';
+        console.error('Upload error:', err);
+        const error = err as { 
+          response?: { data?: { error?: string }; status?: number }; 
+          message?: string; 
+          code?: string 
+        };
+        
+        let errorMsg = 'An error occurred during the upload process.';
+        
+        if (error.code === 'ECONNABORTED') {
+          errorMsg = 'Upload timeout. Files may be too large or connection is slow.';
+        } else if (error.response?.status === 413) {
+          errorMsg = 'Files are too large. Please reduce file sizes and try again.';
+        } else if (error.response?.status === 429) {
+          errorMsg = 'Too many upload attempts. Please wait 15 minutes before trying again.';
+        } else if (error.response?.data?.error) {
+          errorMsg = error.response.data.error;
+        } else if (error.message) {
+          errorMsg = error.message;
+        }
+        
         setFormError(errorMsg);
         setUploadProgress(null);
     } finally {

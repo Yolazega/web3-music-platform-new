@@ -79,24 +79,25 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 
-app.use(express.json({ limit: '10mb' })); // Limit JSON payload size
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '100mb' })); // Increased for file uploads
+app.use(express.urlencoded({ extended: true, limit: '100mb' })); // Increased for file uploads
 
 // Enhanced file upload configuration with security measures
 app.use(fileUpload({
     limits: { 
-        fileSize: 50 * 1024 * 1024, // 50MB limit
+        fileSize: 100 * 1024 * 1024, // 100MB limit (increased for video files)
         files: 5, // Maximum 5 files per request
     },
     useTempFiles: true,
     tempFileDir: '/tmp/',
     createParentPath: true,
-    abortOnLimit: true,
-    responseOnLimit: 'File size limit exceeded',
-    uploadTimeout: 10 * 60 * 1000, // 10 minute timeout
+    abortOnLimit: false, // Let our custom handler deal with size limits
+    responseOnLimit: 'File size limit exceeded - maximum 100MB per file',
+    uploadTimeout: 15 * 60 * 1000, // 15 minute timeout for large files
     // Security: Prevent file path traversal
     safeFileNames: true,
     preserveExtension: true,
+    debug: process.env.NODE_ENV !== 'production', // Enable debug in development
 }) as any);
 
 // Request timeout middleware for upload routes
@@ -111,6 +112,17 @@ app.use('/upload', (req, res, next) => {
         console.error('Response timeout on upload route');
     });
     next();
+});
+
+// Handle payload too large errors specifically for uploads
+app.use('/upload', (err: any, req: any, res: any, next: any) => {
+    if (err.type === 'entity.too.large' || err.status === 413) {
+        console.error('Payload too large error:', err);
+        return res.status(413).json({ 
+            error: 'File too large. Maximum sizes: 10MB for images, 100MB for videos. Please compress your files and try again.' 
+        });
+    }
+    next(err);
 });
 
 app.set('trust proxy', true);
@@ -375,7 +387,7 @@ app.post('/upload', uploadLimiter, async (req, res) => {
         const videoValidation = await validateUploadedFile(
             videoFile, 
             ['video/mp4', 'video/quicktime'], 
-            50 * 1024 * 1024 // 50MB for videos
+            100 * 1024 * 1024 // 100MB for videos (increased limit)
         );
         
         if (!videoValidation.valid) {
@@ -489,6 +501,11 @@ app.post('/upload', uploadLimiter, async (req, res) => {
             if (error.message.includes('IPFS')) {
                 return res.status(503).json({ 
                     error: 'IPFS upload service temporarily unavailable. Please try again in a few minutes.' 
+                });
+            }
+            if (error.message.includes('limit') || error.message.includes('size')) {
+                return res.status(413).json({ 
+                    error: 'File too large. Maximum sizes: 10MB for images, 100MB for videos.' 
                 });
             }
         }
