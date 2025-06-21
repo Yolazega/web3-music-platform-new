@@ -1,170 +1,351 @@
-# Deployment Checklist & Troubleshooting Guide
+# Production Deployment Guide
 
-## ✅ Pre-Deployment Checklist
+## 🚀 Deployment Overview
 
-### Environment Configuration
-- [ ] **PINATA_JWT** - Set in Render backend service environment variables
-- [ ] **NODE_ENV** - Set to "production" for backend
-- [ ] **PORT** - Set to "10000" for Render backend
-- [ ] **VITE_BACKEND_URL** - Automatically configured via render.yaml
+This guide provides step-by-step instructions for deploying the Web3 Music Platform to production with all security measures enabled.
 
-### Code Configuration
-- [ ] **Contract Addresses** - Updated in both frontend and backend config.ts
-  - Voting Contract: `0x83072BC70659AB6aCcd0A46C05bF2748F2Cb2D8e`
-  - Token Contract: `0xa1edD20366dbAc7341DE5fdb9FE1711Fb9EAD4d4`
-- [ ] **CORS Origins** - Backend includes production domains
-- [ ] **API URL** - Frontend points to correct backend service
+## 📋 Pre-Deployment Checklist
 
-### Build Verification
-- [ ] **Frontend Build** - `npm run build` completes successfully
-- [ ] **Backend Build** - `cd backend && npm run build` completes successfully
-- [ ] **TypeScript Compilation** - No errors in either service
+### ✅ Environment Setup
+- [ ] Render.com account with increased pipeline spend limit
+- [ ] Pinata account with JWT token
+- [ ] Domain configured (axepvoting.io)
+- [ ] SSL certificates configured
+- [ ] Monitoring tools setup
 
-## 🚀 Deployment Steps
+### ✅ Security Configuration
+- [ ] All environment variables configured
+- [ ] Rate limiting settings reviewed
+- [ ] CORS origins updated for production
+- [ ] File upload limits configured
+- [ ] Security headers enabled
 
-1. **Push to Repository**
-   ```bash
-   git add .
-   git commit -m "Deploy: Fix all configuration issues"
-   git push origin main
-   ```
+### ✅ Performance Optimization
+- [ ] Server timeouts configured
+- [ ] Memory limits set
+- [ ] Database backup strategy
+- [ ] CDN configuration (if applicable)
 
-2. **Deploy via Render Blueprint**
-   - Go to Render.com dashboard
-   - Create new Blueprint
-   - Connect GitHub repository
-   - Select `render.yaml` configuration
-   - Deploy both services
+## 🔧 Environment Variables
 
-3. **Verify Deployment**
-   - [ ] Backend health check: `https://axep-backend.onrender.com/`
-   - [ ] Frontend loads: `https://axep-frontend.onrender.com/`
-   - [ ] Wallet connection works
-   - [ ] Admin page authentication works
-
-## 🔧 Common Issues & Solutions
-
-### Backend Issues
-
-#### TypeScript Build Errors
-- **Issue**: `fileUpload()` TypeScript error
-- **Solution**: Use type assertion `as any` for middleware
-
-#### CORS Errors
-- **Issue**: Frontend can't connect to backend
-- **Solution**: Ensure CORS origins include production domains:
-  ```typescript
-  app.use(cors({
-      origin: ['http://localhost:3000', 'https://axep-frontend.onrender.com', 'https://www.axepvoting.io'],
-      credentials: true
-  }));
-  ```
-
-#### Environment Variables
-- **Issue**: PINATA_JWT not set
-- **Solution**: Add via Render dashboard > Service > Environment
-
-### Frontend Issues
-
-#### Build Warnings
-- **Issue**: Large chunk size warnings
-- **Solution**: Acceptable for Web3 apps due to crypto libraries
-
-#### API Connection
-- **Issue**: API calls failing
-- **Solution**: Check `VITE_BACKEND_URL` environment variable
-
-#### Wallet Connection
-- **Issue**: RainbowKit not connecting
-- **Solution**: Verify WalletConnect Project ID is valid
-
-### Render.com Specific
-
-#### Service Names
-- **Issue**: Services not finding each other
-- **Solution**: Ensure service names match in render.yaml:
-  - Backend: `axep-backend`
-  - Frontend: `axep-frontend`
-
-#### Build Timeouts
-- **Issue**: Build taking too long
-- **Solution**: Render free tier has 15-minute build limit
-
-#### Static Site Routing
-- **Issue**: React Router not working on refresh
-- **Solution**: Configure rewrite rules in render.yaml:
-  ```yaml
-  routes:
-    - type: rewrite
-      source: /*
-      destination: /index.html
-  ```
-
-## 📊 Health Checks
-
-### Backend Health Check
+### Required Variables
 ```bash
-curl https://axep-backend.onrender.com/
-# Expected: "Hello from the Web3 Music Platform backend!"
+# Core Settings
+NODE_ENV=production
+PORT=3001
+PINATA_JWT=your_actual_pinata_jwt_token
+
+# Security Settings
+API_RATE_LIMIT=100
+UPLOAD_RATE_LIMIT=10
+MAX_FILE_SIZE=52428800
+MAX_IMAGE_SIZE=10485760
+
+# CORS Settings
+ALLOWED_ORIGINS=https://www.axepvoting.io,https://axep-frontend.onrender.com
+
+# Database
+RENDER_DISK_MOUNT_PATH=/opt/render/project/data
 ```
 
-### Frontend Health Check
-- Visit: https://axep-frontend.onrender.com/
-- Check: Page loads without errors
-- Test: Wallet connection button appears
+### Optional Variables
+```bash
+# Monitoring
+SENTRY_DSN=your_sentry_dsn
+LOG_LEVEL=info
 
-### Admin Authentication Check
-1. Connect wallet as contract owner
-2. Navigate to `/admin`
-3. Verify: Admin dashboard loads with proper permissions
+# Performance
+SERVER_TIMEOUT=600000
+UPLOAD_TIMEOUT=300000
+NODE_OPTIONS=--max-old-space-size=512
 
-## 🔄 Rollback Plan
+# Features
+ENABLE_FILE_VALIDATION=true
+ENABLE_VIRUS_SCANNING=false
+MAINTENANCE_MODE=false
+```
 
-If deployment fails:
+## 🏗️ Render.com Deployment
 
-1. **Check Render Logs**
-   - Backend service logs for errors
-   - Frontend build logs for issues
-
-2. **Revert Changes**
-   ```bash
-   git revert HEAD
-   git push origin main
+### Backend Deployment
+1. **Create Web Service**
+   ```
+   Repository: https://github.com/Yolazega/web3-music-platform-new.git
+   Branch: main
+   Root Directory: backend
+   Build Command: npm install && npm run build
+   Start Command: npm start
    ```
 
-3. **Manual Fix**
-   - Fix specific issues locally
-   - Test builds locally
-   - Redeploy
+2. **Environment Configuration**
+   - Add all required environment variables
+   - Set NODE_ENV=production
+   - Configure persistent disk for database
 
-## 📝 Post-Deployment Tasks
+3. **Resource Configuration**
+   ```
+   Instance Type: Standard (512MB RAM minimum)
+   Auto-Deploy: Enabled
+   Health Check Path: /health
+   ```
 
-- [ ] Test all major user flows
-- [ ] Verify admin functionality
-- [ ] Check social media sharing
-- [ ] Monitor error logs
-- [ ] Update DNS if using custom domain
+### Frontend Deployment
+1. **Create Static Site**
+   ```
+   Repository: https://github.com/Yolazega/web3-music-platform-new.git
+   Branch: main
+   Root Directory: /
+   Build Command: npm install && npm run build
+   Publish Directory: dist
+   ```
 
-## 🔍 Monitoring
+2. **Environment Configuration**
+   ```
+   VITE_BACKEND_URL=https://axep-backend.onrender.com
+   ```
 
-### Key Metrics to Watch
-- Backend response times
-- Frontend load times
-- Wallet connection success rate
-- IPFS upload success rate
-- Smart contract interaction success
+## 🔒 Security Configuration
 
-### Log Locations
-- **Backend**: Render service logs
-- **Frontend**: Browser developer console
-- **Smart Contract**: Polygon Amoy explorer
+### Render.com Security Settings
+1. **Environment Variables**
+   - All secrets stored as environment variables
+   - No sensitive data in code repository
+   - Regular rotation of API keys
 
-## 🆘 Emergency Contacts
+2. **Network Security**
+   - HTTPS enforced
+   - Custom domain with SSL
+   - Security headers enabled
 
-- **Render Support**: help@render.com
-- **Repository Issues**: Create GitHub issue
-- **Smart Contract**: Polygon Amoy testnet explorer
+3. **Access Control**
+   - Team access properly configured
+   - Deploy keys secured
+   - Webhook security enabled
+
+### Application Security
+1. **Rate Limiting**
+   - API: 100 requests per 15 minutes per IP
+   - Uploads: 10 uploads per 15 minutes per IP
+   - Automatic IP blocking for violations
+
+2. **File Upload Security**
+   - Magic number validation
+   - File size limits enforced
+   - Secure temp file handling
+   - Automatic cleanup
+
+3. **Input Validation**
+   - All inputs sanitized
+   - Wallet address validation
+   - Genre whitelist enforcement
+
+## 📊 Monitoring & Logging
+
+### Health Checks
+```bash
+# Backend health check
+curl https://axep-backend.onrender.com/health
+
+# Expected response:
+{
+  "status": "healthy",
+  "timestamp": "2025-01-XX...",
+  "uptime": 3600,
+  "memory": {...},
+  "version": "v18.x.x"
+}
+```
+
+### Log Monitoring
+1. **Application Logs**
+   - Request/response logging
+   - Error logging with context
+   - Security event logging
+   - Performance metrics
+
+2. **Infrastructure Logs**
+   - Server resource usage
+   - Network traffic patterns
+   - Deployment logs
+   - Build logs
+
+### Alerting
+1. **Critical Alerts**
+   - Service downtime
+   - High error rates
+   - Security violations
+   - Resource exhaustion
+
+2. **Warning Alerts**
+   - Slow response times
+   - High upload volumes
+   - Rate limit violations
+   - Unusual traffic patterns
+
+## 🔄 Deployment Process
+
+### Automated Deployment
+1. **Git Workflow**
+   ```bash
+   # Development
+   git checkout -b feature/new-feature
+   # Make changes
+   git commit -m "feat: description"
+   git push origin feature/new-feature
+   
+   # Production deployment
+   git checkout main
+   git merge feature/new-feature
+   git push origin main  # Triggers auto-deploy
+   ```
+
+2. **Build Process**
+   ```bash
+   # Backend build
+   npm install
+   npm run build
+   npm start
+   
+   # Frontend build
+   npm install
+   npm run build
+   # Static files served from dist/
+   ```
+
+### Manual Deployment
+1. **Emergency Deployment**
+   - Use Render dashboard
+   - Manual deploy from specific commit
+   - Rollback capability available
+
+2. **Rollback Process**
+   ```bash
+   # Identify last good commit
+   git log --oneline
+   
+   # Create rollback branch
+   git checkout -b rollback/emergency
+   git reset --hard <good-commit-hash>
+   git push origin rollback/emergency
+   
+   # Deploy rollback branch via Render dashboard
+   ```
+
+## 🧪 Testing in Production
+
+### Smoke Tests
+```bash
+# Test basic functionality
+curl https://axep-backend.onrender.com/
+curl https://axep-backend.onrender.com/health
+curl https://axep-backend.onrender.com/tracks
+
+# Test frontend
+curl https://www.axepvoting.io
+```
+
+### Upload Testing
+1. **Test file upload with valid files**
+2. **Test file validation (invalid files)**
+3. **Test rate limiting**
+4. **Test error handling**
+
+### Security Testing
+1. **CORS validation**
+2. **Rate limiting verification**
+3. **Input sanitization testing**
+4. **Error message validation**
+
+## 📈 Performance Optimization
+
+### Backend Optimization
+1. **Memory Management**
+   - Node.js memory limit: 512MB
+   - Garbage collection optimization
+   - Memory leak monitoring
+
+2. **Response Optimization**
+   - Gzip compression (via reverse proxy)
+   - Response caching headers
+   - Database query optimization
+
+### Frontend Optimization
+1. **Asset Optimization**
+   - Code splitting
+   - Asset compression
+   - CDN integration
+
+2. **Loading Performance**
+   - Lazy loading
+   - Progressive enhancement
+   - Service worker caching
+
+## 🔧 Maintenance
+
+### Regular Maintenance
+1. **Weekly Tasks**
+   - Review application logs
+   - Check error rates
+   - Monitor resource usage
+   - Verify backup integrity
+
+2. **Monthly Tasks**
+   - Security dependency updates
+   - Performance review
+   - Capacity planning
+   - Security audit
+
+### Emergency Procedures
+1. **Service Outage**
+   - Check Render service status
+   - Review application logs
+   - Verify external service status
+   - Implement emergency measures
+
+2. **Security Incident**
+   - Immediate response protocol
+   - Log analysis
+   - Threat mitigation
+   - Incident documentation
+
+## 📞 Support Contacts
+
+### Technical Support
+- **Platform Issues**: Render.com support
+- **IPFS Issues**: Pinata support
+- **Domain Issues**: Domain registrar support
+
+### Application Support
+- **Code Issues**: Development team
+- **Security Issues**: security@axepvoting.io
+- **Performance Issues**: DevOps team
+
+## 🔄 Backup & Recovery
+
+### Database Backup
+1. **Automatic Backups**
+   - Daily database snapshots
+   - Persistent disk backups
+   - Off-site backup storage
+
+2. **Recovery Process**
+   - Point-in-time recovery
+   - Data integrity verification
+   - Service restoration
+
+### Disaster Recovery
+1. **Complete Service Recovery**
+   - Infrastructure recreation
+   - Data restoration
+   - Service verification
+
+2. **Business Continuity**
+   - Communication plan
+   - User notification
+   - Service level agreements
 
 ---
 
-*Last Updated: January 2025* 
+**Last Updated**: January 2025  
+**Deployment Version**: Production v1.0  
+**Next Review**: Monthly deployment review 
