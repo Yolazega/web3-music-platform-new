@@ -70,7 +70,7 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
     });
 };
 
-export const validateVideoDuration = async (filePath: string, maxDurationSeconds: number = 90): Promise<{ valid: boolean; error?: string; duration?: number }> => {
+export const validateVideoDuration = async (filePath: string, maxDurationSeconds: number = 120): Promise<{ valid: boolean; error?: string; duration?: number }> => {
     try {
         console.log(`Validating video duration for: ${filePath}`);
         const metadata = await getVideoMetadata(filePath);
@@ -86,7 +86,7 @@ export const validateVideoDuration = async (filePath: string, maxDurationSeconds
         if (metadata.duration > maxDurationSeconds) {
             return {
                 valid: false,
-                error: `Video duration is ${Math.round(metadata.duration)}s. Maximum allowed is ${maxDurationSeconds}s (90 seconds).`,
+                error: `Video duration is ${Math.round(metadata.duration)}s. Maximum allowed is ${maxDurationSeconds}s (2 minutes).`,
                 duration: metadata.duration
             };
         }

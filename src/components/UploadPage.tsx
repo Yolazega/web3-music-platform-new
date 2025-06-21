@@ -44,7 +44,7 @@ const UploadPage: React.FC = () => {
       }
     } else {
       const allowedVideoTypes = ['video/mp4', 'video/quicktime'];
-      const maxVideoSize = 500 * 1024 * 1024; // 500MB for high-quality 90-second videos
+      const maxVideoSize = 500 * 1024 * 1024; // 500MB for high-quality 2-minute videos
       
       if (!allowedVideoTypes.includes(file.type)) {
         return { valid: false, error: 'Invalid video format. Please use MP4 or MOV.' };
@@ -214,7 +214,7 @@ const UploadPage: React.FC = () => {
     <div>
       <h2>Register as an Artist & Upload Your First Track</h2>
       <p>Upload your track here. Our team will review it and add it to the blockchain for voting.</p>
-      <p><strong>⏱️ Important:</strong> Videos must be <strong>90 seconds or less</strong>. File size limit: 500MB (supports 4K quality).</p>
+      <p><strong>⏱️ Important:</strong> Videos must be <strong>2 minutes or less</strong>. File size limit: 500MB (supports 4K quality).</p>
       
       {uploadProgress && <p><i>Status: {uploadProgress}</i></p>}
       {uploadSuccess && <p style={{ color: 'green' }}>Success! Your track has been submitted for review.</p>}
