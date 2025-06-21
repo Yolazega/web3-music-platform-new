@@ -66,8 +66,8 @@ const apiLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-        // Skip rate limiting in development
-        return process.env.NODE_ENV !== 'production';
+        // Skip rate limiting in development or for admin routes
+        return process.env.NODE_ENV !== 'production' || req.path.startsWith('/admin/');
     }
 });
 
@@ -939,6 +939,37 @@ app.post('/debug-files', async (req, res) => {
 });
 
 // --- Admin Panel Endpoints ---
+
+// Combined admin data endpoint to reduce multiple requests
+app.get('/admin/dashboard', async (req, res) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        
+        // Transform shares to include track information
+        const sharesWithTrackInfo = db.shares.map(share => {
+            const track = db.tracks.find(t => t.onChainId === share.trackId);
+            return {
+                ...share,
+                track: track ? {
+                    title: track.title,
+                    artist: track.artist
+                } : {
+                    title: 'Unknown Track',
+                    artist: 'Unknown Artist'
+                }
+            };
+        });
+        
+        res.json({
+            submissions: db.tracks,
+            votes: db.votes,
+            shares: sharesWithTrackInfo
+        });
+    } catch (error) {
+        console.error('Error fetching admin dashboard data:', error);
+        res.status(500).json({ error: 'Failed to fetch admin dashboard data.' });
+    }
+});
 
 app.get('/admin/submissions', async (req, res) => {
     try {

@@ -83,17 +83,39 @@ const AdminPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const [submissionsRes, votesRes, shareSubmissionsRes] = await Promise.all([
-                api.get('/admin/submissions'),
-                api.get('/admin/votes'),
-                api.get('/admin/shares'),
-            ]);
+            // Try the combined endpoint first for better performance
+            try {
+                console.log('Fetching admin dashboard data...');
+                const dashboardRes = await api.get('/admin/dashboard');
+                const { submissions, votes, shares } = dashboardRes.data;
+                
+                setSubmissions(submissions.sort((a: Track, b: Track) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
+                setVotes(votes);
+                setShareSubmissions(shares);
+                console.log('Admin dashboard data loaded successfully');
+                return;
+            } catch (dashboardError) {
+                console.warn('Dashboard endpoint failed, falling back to individual requests:', dashboardError);
+            }
+            
+            // Fallback: Make requests sequentially to avoid overwhelming the server
+            console.log('Fetching admin submissions...');
+            const submissionsRes = await api.get('/admin/submissions');
+            
+            console.log('Fetching admin votes...');
+            const votesRes = await api.get('/admin/votes');
+            
+            console.log('Fetching admin shares...');
+            const shareSubmissionsRes = await api.get('/admin/shares');
+            
             setSubmissions(submissionsRes.data.sort((a: Track, b: Track) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()));
             setVotes(votesRes.data);
             setShareSubmissions(shareSubmissionsRes.data);
-        } catch (err) {
-            setError("Failed to load admin data. Please try again.");
-            console.error(err);
+            console.log('All admin data loaded successfully via individual requests');
+        } catch (err: any) {
+            const errorMsg = err.response?.data?.error || err.message || "Failed to load admin data";
+            setError(`${errorMsg}. Please try again.`);
+            console.error('Admin data fetch error:', err);
         } finally {
             setLoading(false);
         }

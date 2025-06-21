@@ -38,7 +38,7 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor for debugging (only in development)
+// Add response interceptor for debugging and retry logic
 api.interceptors.response.use(
   (response) => {
     if (!import.meta.env.PROD) {
@@ -46,11 +46,36 @@ api.interceptors.response.use(
     }
     return response;
   },
-  (error) => {
-    console.error('API Response Error:', error.response?.status, error.response?.data);
+  async (error) => {
+    const originalRequest = error.config;
+    
+    console.error('API Response Error:', error.response?.status, error.response?.data, error.config?.url);
+    
+    // Handle specific error cases
     if (error.code === 'ECONNABORTED') {
       console.error('Request timed out. File might be too large or connection is slow.');
     }
+    
+    // Retry logic for 502 Bad Gateway and network errors
+    if (
+      (error.response?.status === 502 || error.code === 'ERR_NETWORK') &&
+      !originalRequest._retry &&
+      originalRequest.method === 'get'
+    ) {
+      originalRequest._retry = true;
+      console.log('Retrying request after 502/network error:', originalRequest.url);
+      
+      // Wait 1 second before retrying
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      try {
+        return await api(originalRequest);
+      } catch (retryError) {
+        console.error('Retry failed:', retryError);
+        return Promise.reject(retryError);
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
