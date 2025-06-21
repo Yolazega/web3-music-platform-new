@@ -250,6 +250,48 @@ app.post('/vote', async (req, res) => {
     }
 });
 
+// Test file upload endpoint for debugging
+app.post('/test-upload', async (req, res) => {
+    try {
+        console.log('=== TEST UPLOAD DEBUG ===');
+        console.log('Request body keys:', Object.keys(req.body));
+        console.log('Request files:', req.files ? Object.keys(req.files) : 'No files');
+        
+        if (!req.files || Object.keys(req.files).length === 0) {
+            return res.status(400).json({ error: 'No files were uploaded.' });
+        }
+
+        const fileKeys = Object.keys(req.files);
+        const results: any = {};
+
+        for (const key of fileKeys) {
+            const file = req.files[key] as UploadedFile;
+            console.log(`File ${key}:`, {
+                name: file.name,
+                size: file.size,
+                mimetype: file.mimetype,
+                hasData: !!file.data,
+                dataLength: file.data ? file.data.length : 0
+            });
+
+            // Try to upload to Pinata
+            try {
+                const url = await uploadToPinata(file);
+                results[key] = { success: true, url };
+                console.log(`${key} uploaded successfully:`, url);
+            } catch (error) {
+                results[key] = { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+                console.error(`${key} upload failed:`, error);
+            }
+        }
+
+        res.json({ message: 'Test upload completed', results });
+    } catch (error) {
+        console.error('Test upload error:', error);
+        res.status(500).json({ error: 'Test upload failed' });
+    }
+});
+
 // --- Admin Panel Endpoints ---
 
 app.get('/admin/submissions', async (req, res) => {

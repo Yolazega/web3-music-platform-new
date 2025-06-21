@@ -5,7 +5,14 @@ import { UploadedFile } from 'express-fileupload';
 
 dotenv.config();
 
-const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || 'https://gateway.pinata.cloud/ipfs/';
+// Try multiple IPFS gateways for better reliability
+const IPFS_GATEWAYS = [
+    'https://ipfs.io/ipfs/',
+    'https://gateway.pinata.cloud/ipfs/',
+    'https://cloudflare-ipfs.com/ipfs/'
+];
+
+const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || IPFS_GATEWAYS[0];
 
 export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
     const PINATA_JWT = process.env.PINATA_JWT;
