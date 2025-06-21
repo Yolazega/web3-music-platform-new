@@ -79,21 +79,21 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
 
-app.use(express.json({ limit: '100mb' })); // Increased for file uploads
-app.use(express.urlencoded({ extended: true, limit: '100mb' })); // Increased for file uploads
+app.use(express.json({ limit: '50mb' })); // Optimized for 90-second videos
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Optimized for 90-second videos
 
 // Enhanced file upload configuration with security measures
 app.use(fileUpload({
     limits: { 
-        fileSize: 100 * 1024 * 1024, // 100MB limit (increased for video files)
+        fileSize: 30 * 1024 * 1024, // 30MB limit (optimized for 90-second videos)
         files: 5, // Maximum 5 files per request
     },
     useTempFiles: true,
     tempFileDir: '/tmp/',
     createParentPath: true,
     abortOnLimit: false, // Let our custom handler deal with size limits
-    responseOnLimit: 'File size limit exceeded - maximum 100MB per file',
-    uploadTimeout: 15 * 60 * 1000, // 15 minute timeout for large files
+    responseOnLimit: 'File size limit exceeded - maximum 30MB per file for 90-second videos',
+    uploadTimeout: 10 * 60 * 1000, // 10 minute timeout (sufficient for 90-second videos)
     // Security: Prevent file path traversal
     safeFileNames: true,
     preserveExtension: true,
@@ -119,7 +119,7 @@ app.use('/upload', (err: any, req: any, res: any, next: any) => {
     if (err.type === 'entity.too.large' || err.status === 413) {
         console.error('Payload too large error:', err);
         return res.status(413).json({ 
-            error: 'File too large. Maximum sizes: 10MB for images, 100MB for videos. Please compress your files and try again.' 
+            error: 'File too large. Maximum sizes: 10MB for images, 30MB for 90-second videos. Please compress your files and try again.' 
         });
     }
     next(err);
@@ -387,7 +387,7 @@ app.post('/upload', uploadLimiter, async (req, res) => {
         const videoValidation = await validateUploadedFile(
             videoFile, 
             ['video/mp4', 'video/quicktime'], 
-            100 * 1024 * 1024 // 100MB for videos (increased limit)
+            30 * 1024 * 1024 // 30MB for 90-second videos
         );
         
         if (!videoValidation.valid) {
@@ -505,7 +505,7 @@ app.post('/upload', uploadLimiter, async (req, res) => {
             }
             if (error.message.includes('limit') || error.message.includes('size')) {
                 return res.status(413).json({ 
-                    error: 'File too large. Maximum sizes: 10MB for images, 100MB for videos.' 
+                    error: 'File too large. Maximum sizes: 10MB for images, 30MB for 90-second videos.' 
                 });
             }
         }

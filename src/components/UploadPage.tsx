@@ -44,13 +44,13 @@ const UploadPage: React.FC = () => {
       }
     } else {
       const allowedVideoTypes = ['video/mp4', 'video/quicktime'];
-      const maxVideoSize = 100 * 1024 * 1024; // 100MB
+      const maxVideoSize = 30 * 1024 * 1024; // 30MB for 90-second videos
       
       if (!allowedVideoTypes.includes(file.type)) {
         return { valid: false, error: 'Invalid video format. Please use MP4 or MOV.' };
       }
       if (file.size > maxVideoSize) {
-        return { valid: false, error: 'Video file too large. Maximum size is 50MB.' };
+        return { valid: false, error: 'Video file too large. Maximum size is 30MB for 90-second videos.' };
       }
       if (file.size < 10240) {
         return { valid: false, error: 'Video file too small. Minimum size is 10KB.' };
