@@ -665,6 +665,90 @@ app.get('/health/pinata', async (req, res) => {
     }
 });
 
+// Debug endpoint to test Pinata upload with controlled data
+app.post('/debug/pinata-upload', async (req, res) => {
+    try {
+        const PINATA_JWT = process.env.PINATA_JWT;
+        if (!PINATA_JWT) {
+            return res.status(500).json({ error: 'Pinata JWT not configured' });
+        }
+
+        // Create test data with timestamp to ensure uniqueness
+        const timestamp = Date.now();
+        const testData1 = `Test file 1 - ${timestamp} - ${Math.random()}`;
+        const testData2 = `Test file 2 - ${timestamp} - ${Math.random()}`;
+
+        console.log('=== PINATA DEBUG TEST ===');
+        console.log('Test data 1:', testData1);
+        console.log('Test data 2:', testData2);
+
+        // Test upload 1 (using form-data package for Node.js)
+        const FormDataNode = (await import('form-data')).default;
+        const formData1 = new FormDataNode();
+        formData1.append('file', Buffer.from(testData1), {
+            filename: `test1-${timestamp}.txt`,
+            contentType: 'text/plain'
+        });
+
+        const response1 = await axios.post('https://api.pinata.cloud/pinning/pinFileToIPFS', formData1, {
+            headers: {
+                ...formData1.getHeaders(),
+                'Authorization': `Bearer ${PINATA_JWT}`
+            },
+            timeout: 60000
+        });
+
+        console.log('Upload 1 response:', response1.data);
+
+        // Test upload 2
+        const formData2 = new FormDataNode();
+        formData2.append('file', Buffer.from(testData2), {
+            filename: `test2-${timestamp}.txt`,
+            contentType: 'text/plain'
+        });
+
+        const response2 = await axios.post('https://api.pinata.cloud/pinning/pinFileToIPFS', formData2, {
+            headers: {
+                ...formData2.getHeaders(),
+                'Authorization': `Bearer ${PINATA_JWT}`
+            },
+            timeout: 60000
+        });
+
+        console.log('Upload 2 response:', response2.data);
+
+        const hash1 = response1.data.IpfsHash;
+        const hash2 = response2.data.IpfsHash;
+
+        console.log('Hash 1:', hash1);
+        console.log('Hash 2:', hash2);
+        console.log('Hashes are same:', hash1 === hash2);
+
+        res.json({
+            message: 'Pinata debug test completed',
+            test1: {
+                data: testData1,
+                hash: hash1,
+                url: `https://ipfs.io/ipfs/${hash1}`
+            },
+            test2: {
+                data: testData2,
+                hash: hash2,
+                url: `https://ipfs.io/ipfs/${hash2}`
+            },
+            hashesAreSame: hash1 === hash2,
+            problem: hash1 === hash2 ? 'CRITICAL: Different content returns same hash!' : 'OK: Different content returns different hashes'
+        });
+
+    } catch (error) {
+        console.error('Pinata debug test failed:', error);
+        res.status(500).json({ 
+            error: 'Pinata debug test failed',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
+
 // --- Server Initialization ---
 const startServer = async () => {
     await initializeDatabase();
