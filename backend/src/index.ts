@@ -213,6 +213,59 @@ app.get('/tracks/:id', async (req, res) => {
     }
 });
 
+// Get top track by genre for homepage
+app.get('/tracks/top-by-genre', async (req, res) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const publishedTracks = db.tracks.filter((t) => t.status === 'published');
+        
+        if (publishedTracks.length === 0) {
+            return res.json({});
+        }
+
+        const genres = ["Pop", "Soul", "Rock", "Country", "RAP", "Afro / Dancehall", "Electronic", "Instrumental / Other"];
+        const topByGenre: { [genre: string]: Track } = {};
+
+        genres.forEach(genre => {
+            const genreTracks = publishedTracks.filter(track => track.genre === genre);
+            if (genreTracks.length > 0) {
+                // Find the track with most votes in this genre
+                const topTrack = genreTracks.reduce((prev, current) => 
+                    (current.votes > prev.votes) ? current : prev
+                );
+                topByGenre[genre] = topTrack;
+            }
+        });
+
+        res.json(topByGenre);
+    } catch (error) {
+        console.error('Error fetching top tracks by genre:', error);
+        res.status(500).json({ error: 'Failed to fetch top tracks by genre.' });
+    }
+});
+
+// Get overall winner (track with most votes)
+app.get('/tracks/overall-winner', async (req, res) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const publishedTracks = db.tracks.filter((t) => t.status === 'published');
+        
+        if (publishedTracks.length === 0) {
+            return res.status(404).json({ error: 'No published tracks found.' });
+        }
+
+        // Find the track with the most votes overall
+        const winner = publishedTracks.reduce((prev, current) => 
+            (current.votes > prev.votes) ? current : prev
+        );
+
+        res.json(winner);
+    } catch (error) {
+        console.error('Error fetching overall winner:', error);
+        res.status(500).json({ error: 'Failed to fetch overall winner.' });
+    }
+});
+
 // Handle votes
 app.post('/vote', async (req, res) => {
     const { trackId, voterAddress } = req.body;
