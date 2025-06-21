@@ -1,93 +1,56 @@
-# AXEP - Web3 Music Voting Platform
+# 🎵 Axep - Web3 Music Voting Platform
 
-A decentralized music platform where artists can submit tracks and users can vote for their favorites using blockchain technology.
+A decentralized music platform that democratizes music discovery through blockchain-based voting and rewards. Artists can submit 2-minute music videos, and the community votes to determine winners.
 
-## 🎵 Features
+## 🌐 Live Platform
 
-- **Artist Track Submission**: Upload music tracks with metadata to IPFS
-- **Decentralized Voting**: Vote for tracks using Polygon Amoy testnet
-- **Token Rewards**: Earn AXP tokens for participation
-- **Admin Dashboard**: Manage submissions and track analytics
-- **Wallet Integration**: Connect with MetaMask and other Web3 wallets
-- **Weekly Competitions**: Time-based voting periods with winners
+- **Frontend**: [https://www.axepvoting.io](https://www.axepvoting.io)
+- **Backend API**: [https://axep-backend.onrender.com](https://axep-backend.onrender.com)
+- **Blockchain**: Polygon Amoy Testnet
+
+## ✨ Features
+
+- **2-Minute Music Videos**: Artists submit high-quality videos up to 2 minutes long
+- **Blockchain Voting**: Decentralized voting system using smart contracts
+- **IPFS Storage**: Distributed file storage via Pinata
+- **Genre Categories**: Multiple music genres supported
+- **Reward System**: Token-based rewards for participation
+- **Mobile Responsive**: Works seamlessly on all devices
 
 ## 🏗️ Architecture
 
-### Frontend (React + TypeScript + Vite)
-- **Framework**: React 19 with TypeScript
-- **Build Tool**: Vite for fast development and building
-- **Web3 Integration**: Wagmi + RainbowKit for wallet connectivity
-- **UI Components**: Material-UI for consistent design
-- **State Management**: React hooks with Tanstack Query
+### Frontend
+- **React 19** with TypeScript
+- **Vite** for fast development and building
+- **Material-UI** for modern UI components
+- **RainbowKit** for Web3 wallet integration
+- **Wagmi** for Ethereum interactions
 
-### Backend (Node.js + Express)
-- **Runtime**: Node.js with Express.js
-- **File Storage**: IPFS via Pinata for decentralized storage
-- **Database**: JSON file-based storage (can be upgraded to PostgreSQL)
-- **Authentication**: Wallet-based authentication
+### Backend
+- **Node.js** with Express and TypeScript
+- **IPFS Integration** via Pinata
+- **Video Processing** with FFprobe for duration validation
+- **Security Features** including rate limiting and input validation
+- **Production-ready** with comprehensive error handling
 
-### Smart Contracts (Solidity)
-- **Network**: Polygon Amoy Testnet
-- **Voting Contract**: `0x83072BC70659AB6aCcd0A46C05bF2748F2Cb2D8e`
-- **Token Contract**: `0xa1edD20366dbAc7341DE5fdb9FE1711Fb9EAD4d4`
+### Blockchain
+- **Smart Contracts** written in Solidity
+- **Hardhat** for development and testing
+- **OpenZeppelin** contracts for security
+- **Polygon Amoy** testnet deployment
 
-## 🚀 Deployment
+## 🚀 Quick Start
 
-### Render.com Configuration
+### Prerequisites
+- Node.js 18+ 
+- npm or yarn
+- Git
 
-The project is configured for deployment on Render using a Blueprint approach:
-
-```yaml
-services:
-  # Backend Web Service
-  - type: web
-    name: axep-backend
-    env: node
-    rootDir: ./backend
-    buildCommand: "npm install && npm run build"
-    startCommand: "npm start"
-    envVars:
-      - key: PINATA_JWT
-        sync: false
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: "10000"
-
-  # Frontend Static Site
-  - type: web
-    name: axep-frontend
-    env: static
-    rootDir: ./
-    buildCommand: "npm install && npm run build"
-    staticPublishPath: ./dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_BACKEND_URL
-        fromService:
-          type: web
-          name: axep-backend
-          property: url
-```
-
-### Environment Variables
-
-#### Backend
-- `PINATA_JWT`: JWT token for IPFS uploads via Pinata
-- `NODE_ENV`: Set to "production" for production builds
-- `PORT`: Server port (default: 3001, Render uses 10000)
-
-#### Frontend
-- `VITE_BACKEND_URL`: Automatically set by Render from backend service URL
-
-### Local Development
+### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Yolazega/web3-music-platform-new.git
    cd web3-music-platform-new
    ```
 
@@ -97,136 +60,138 @@ services:
    npm install
    
    # Install backend dependencies
-   cd backend
-   npm install
-   cd ..
+   cd backend && npm install && cd ..
    ```
 
-3. **Set up environment variables**
+3. **Environment Setup**
    ```bash
-   # Backend .env file
+   # Backend environment
    cd backend
-   echo "PINATA_JWT=your_pinata_jwt_here" > .env
-   cd ..
-   ```
-
-4. **Start development servers**
-   ```bash
-   # Terminal 1: Frontend
-   npm run dev
+   cp .env.example .env
+   # Add your PINATA_JWT token
    
-   # Terminal 2: Backend
-   cd backend
-   npm run dev
+   # Frontend environment (if needed)
+   cd ..
+   cp .env.example .env
+   ```
+
+4. **Development**
+   ```bash
+   # Run both frontend and backend
+   npm run dev:all
+   
+   # Or run separately
+   npm run dev              # Frontend only
+   npm run dev:backend      # Backend only
    ```
 
 ## 📁 Project Structure
 
 ```
 web3-music-platform-new/
-├── src/                      # Frontend source code
-│   ├── components/           # React components
-│   │   ├── AdminPage.tsx     # Admin dashboard
-│   │   ├── HomePage.tsx      # Landing page
-│   │   ├── UploadPage.tsx    # Track submission
-│   │   ├── VotingPage.tsx    # Voting interface
-│   │   └── ...
-│   ├── services/             # API and Web3 services
-│   │   ├── api.ts           # Backend API client
-│   │   └── walletService.ts # Wallet configuration
-│   ├── config.ts            # Contract addresses and ABIs
-│   └── types.ts             # TypeScript type definitions
-├── backend/                  # Backend source code
-│   ├── src/
-│   │   ├── index.ts         # Main server file
-│   │   ├── pinata.ts        # IPFS upload service
-│   │   ├── config.ts        # Backend configuration
-│   │   └── time.ts          # Time-based utilities
-│   └── package.json
-├── contracts/               # Smart contract source
-├── public/                  # Static assets
-├── render.yaml             # Render deployment configuration
-└── package.json            # Frontend dependencies
+├── src/                    # Frontend React application
+│   ├── components/         # React components
+│   ├── services/          # API and wallet services
+│   ├── contracts/         # Contract interfaces
+│   └── utils/             # Utility functions
+├── backend/               # Node.js backend
+│   ├── src/               # TypeScript source
+│   ├── dist/              # Compiled JavaScript
+│   └── package.json       # Backend dependencies
+├── contracts/             # Solidity smart contracts
+├── public/                # Static assets
+├── scripts/               # Build and deployment scripts
+└── package.json           # Frontend dependencies
 ```
 
-## 🔧 Key Technologies
+## 🔧 Configuration
 
-- **Frontend**: React 19, TypeScript, Vite, Material-UI
-- **Backend**: Node.js, Express, TypeScript
-- **Blockchain**: Ethereum/Polygon, Solidity, Ethers.js
-- **Web3**: Wagmi, RainbowKit, Viem
-- **Storage**: IPFS (Pinata), JSON database
-- **Deployment**: Render.com
+### Backend Configuration
+Key environment variables:
+- `PINATA_JWT`: Your Pinata API key for IPFS uploads
+- `NODE_ENV`: Set to "production" for production builds
+- `PORT`: Server port (default: 10000)
 
-## 🎯 Core Functionality
+### Frontend Configuration
+- `VITE_BACKEND_URL`: Backend API URL
+- Wallet configuration in `src/services/walletService.ts`
 
-### Track Submission Flow
-1. Artist connects wallet
-2. Uploads track file and cover image
-3. Files stored on IPFS via Pinata
-4. Metadata stored in backend database
-5. Admin approves/rejects submission
-6. Approved tracks published to blockchain
+## 📋 Available Scripts
 
-### Voting Flow
-1. User connects wallet
-2. Views published tracks for current week
-3. Casts vote (one per track per week)
-4. Vote recorded on blockchain
-5. Weekly tallying determines winners
+### Frontend
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run lint` - Run ESLint
+- `npm run preview` - Preview production build
 
-### Admin Features
-- Review and approve/reject submissions
-- Publish approved tracks to blockchain
-- Tally votes and determine winners
-- Manage share submissions for rewards
-- View analytics and statistics
+### Backend
+- `npm run dev` - Start development server with hot reload
+- `npm run build` - Compile TypeScript to JavaScript
+- `npm run start` - Start production server
 
-## 🔐 Security Features
+### Combined
+- `npm run dev:all` - Run both frontend and backend
+- `npm run build:all` - Build both frontend and backend
+- `npm run clean` - Clean all build artifacts and dependencies
 
-- **Wallet-based Authentication**: Admin access via contract owner verification
-- **Input Validation**: Server-side validation for all submissions
-- **Rate Limiting**: Time-based submission and voting periods
-- **CORS Protection**: Configured for specific domains
-- **File Upload Limits**: 50MB limit for media files
+## 🔒 Security Features
 
-## 🌐 Live URLs
+- **Rate Limiting**: API endpoints protected against abuse
+- **Input Validation**: Comprehensive validation of all inputs
+- **File Validation**: Magic number validation for uploaded files
+- **CORS Protection**: Configured for secure cross-origin requests
+- **Helmet.js**: Security headers and protection
+- **Video Duration Limits**: 2-minute maximum enforced server-side
 
-- **Frontend**: https://axep-frontend.onrender.com
-- **Backend**: https://axep-backend.onrender.com
-- **Custom Domain**: https://www.axepvoting.io
+## 🎥 Video Upload Specifications
 
-## 📊 Smart Contract Details
+- **Duration**: Maximum 2 minutes (120 seconds)
+- **File Size**: Up to 500MB for high-quality videos
+- **Formats**: MP4, MOV supported
+- **Quality**: Supports up to 4K resolution
+- **Processing**: Server-side validation using FFprobe
 
-### Voting Contract Functions
-- `batchRegisterAndUpload()`: Publish multiple tracks
-- `vote()`: Cast vote for a track
-- `tallyVotes()`: Calculate weekly winners
-- `recordShare()`: Record social media shares
-- `distributeShareRewards()`: Distribute rewards
+## 🌐 Deployment
 
-### Token Contract (AXP)
-- Standard ERC-20 token for platform rewards
-- Used for voting rewards and incentives
+The platform is deployed on Render.com with:
+- **Automatic deployments** from the main branch
+- **Environment variable management**
+- **Health checks** and monitoring
+- **CDN integration** for static assets
+
+### Manual Deployment
+```bash
+# Build everything
+npm run build:all
+
+# Deploy to your hosting provider
+# (Configuration in render.yaml)
+```
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 📝 License
+## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
-For support and questions:
-- Create an issue in the repository
-- Contact the development team
-- Check the documentation in the code comments
+- **Issues**: [GitHub Issues](https://github.com/Yolazega/web3-music-platform-new/issues)
+- **Documentation**: Check the `/docs` folder for detailed guides
+- **Community**: Join our Discord for discussions
+
+## 🔄 Recent Updates
+
+- ✅ **Fixed video upload issues** - Resolved ffprobe-static integration
+- ✅ **Repository cleanup** - Removed temporary files and organized dependencies
+- ✅ **Enhanced security** - Added comprehensive input validation
+- ✅ **Improved performance** - Optimized build process and deployment
 
 ---
 

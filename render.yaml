@@ -4,8 +4,9 @@ services:
     name: axep-backend
     env: node
     rootDir: ./backend
-    buildCommand: "rm -rf node_modules package-lock.json && npm install && npm run build"
+    buildCommand: "npm ci && npm run build"
     startCommand: "npm start"
+    healthCheckPath: /health
     envVars:
       - key: PINATA_JWT
         sync: false
@@ -25,10 +26,16 @@ services:
         - "public/**/*"
         - "package.json"
         - "package-lock.json"
-        - "tsconfig.json"
+        - "tsconfig*.json"
         - "vite.config.ts"
         - "index.html"
-    buildCommand: "rm -rf node_modules package-lock.json && npm install && npm run build"
+      ignoredPaths:
+        - "backend/**/*"
+        - "contracts/**/*"
+        - "scripts/**/*"
+        - "test*"
+        - "*.md"
+    buildCommand: "npm ci && npm run build"
     staticPublishPath: ./dist
     routes:
       - type: rewrite
