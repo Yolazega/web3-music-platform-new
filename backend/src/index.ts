@@ -523,6 +523,32 @@ app.patch('/admin/shares/:id', async (req, res) => {
     }
 });
 
+// Clean up broken tracks (admin only)
+app.delete('/admin/tracks/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        
+        const trackIndex = db.tracks.findIndex(t => t.id === id);
+        if (trackIndex === -1) {
+            return res.status(404).json({ error: 'Track not found' });
+        }
+        
+        const deletedTrack = db.tracks.splice(trackIndex, 1)[0];
+        
+        // Also remove any votes for this track
+        db.votes = db.votes.filter(v => v.trackId !== id);
+        
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+        
+        console.log('Deleted track:', deletedTrack.title, 'by', deletedTrack.artist);
+        res.json({ message: 'Track deleted successfully', deletedTrack });
+    } catch (error) {
+        console.error('Error deleting track:', error);
+        res.status(500).json({ error: 'Failed to delete track' });
+    }
+});
+
 // Health check for Pinata configuration
 app.get('/health/pinata', async (req, res) => {
     try {

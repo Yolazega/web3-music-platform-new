@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Upload Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 20px 0; padding: 15px; border: 1px solid #ddd; background: #f9f9f9; }
+        button { padding: 10px 20px; margin: 10px 0; }
+        input { margin: 10px 0; display: block; }
+    </style>
+</head>
+<body>
+    <h1>Upload Test</h1>
+    <p>This will test if the upload process is working with the fixed backend.</p>
+    
+    <div>
+        <label>Cover Image (small image file):</label>
+        <input type="file" id="coverImage" accept="image/*">
+        
+        <label>Video (small video file):</label>
+        <input type="file" id="video" accept="video/*">
+        
+        <button onclick="testUpload()">Test Upload</button>
+    </div>
+    
+    <div id="result" class="result" style="display: none;"></div>
+    
+    <script>
+        async function testUpload() {
+            const coverImage = document.getElementById('coverImage').files[0];
+            const video = document.getElementById('video').files[0];
+            const resultDiv = document.getElementById('result');
+            
+            if (!coverImage || !video) {
+                alert('Please select both files');
+                return;
+            }
+            
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = 'Testing upload...';
+            
+            const formData = new FormData();
+            formData.append('artist', 'Test Artist');
+            formData.append('title', 'Test Track');
+            formData.append('genre', 'Pop');
+            formData.append('artistWallet', '0x742d35Cc6631C0532925a3b8D11C9b1dC1d85b76');
+            formData.append('coverImageFile', coverImage);
+            formData.append('videoFile', video);
+            
+            try {
+                const response = await fetch('https://axep-backend.onrender.com/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <h3>✅ Upload Successful!</h3>
+                        <p><strong>Track ID:</strong> ${result.track.id}</p>
+                        <p><strong>Cover Image URL:</strong> <a href="${result.track.coverImageUrl}" target="_blank">${result.track.coverImageUrl}</a></p>
+                        <p><strong>Video URL:</strong> <a href="${result.track.videoUrl}" target="_blank">${result.track.videoUrl}</a></p>
+                        <p><strong>Status:</strong> ${result.track.status}</p>
+                        <hr>
+                        <p>Now check the admin panel to publish this track!</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <h3>❌ Upload Failed</h3>
+                        <p><strong>Error:</strong> ${result.error}</p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3>❌ Network Error</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html> 
