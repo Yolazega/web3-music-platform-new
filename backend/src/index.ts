@@ -200,10 +200,15 @@ app.get('/tracks', async (req, res) => {
 // Get top track by genre for homepage
 app.get('/tracks/top-by-genre', async (req, res) => {
     try {
+        console.log('=== TOP BY GENRE REQUEST ===');
         const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        console.log('Total tracks in DB:', db.tracks.length);
+        
         const publishedTracks = db.tracks.filter((t) => t.status === 'published');
+        console.log('Published tracks:', publishedTracks.length);
         
         if (publishedTracks.length === 0) {
+            console.log('No published tracks found, returning empty object');
             return res.json({});
         }
 
@@ -221,6 +226,7 @@ app.get('/tracks/top-by-genre', async (req, res) => {
             }
         });
 
+        console.log('Top tracks by genre:', Object.keys(topByGenre));
         res.json(topByGenre);
     } catch (error) {
         console.error('Error fetching top tracks by genre:', error);
@@ -231,11 +237,16 @@ app.get('/tracks/top-by-genre', async (req, res) => {
 // Get overall winner (track with most votes)
 app.get('/tracks/overall-winner', async (req, res) => {
     try {
+        console.log('=== OVERALL WINNER REQUEST ===');
         const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        console.log('Total tracks in DB:', db.tracks.length);
+        
         const publishedTracks = db.tracks.filter((t) => t.status === 'published');
+        console.log('Published tracks:', publishedTracks.length);
         
         if (publishedTracks.length === 0) {
-            return res.status(404).json({ error: 'No published tracks found.' });
+            console.log('No published tracks found');
+            return res.json({ message: 'No published tracks found yet.' });
         }
 
         // Find the track with the most votes overall
@@ -243,6 +254,7 @@ app.get('/tracks/overall-winner', async (req, res) => {
             (current.votes > prev.votes) ? current : prev
         );
 
+        console.log('Overall winner:', winner.title, 'by', winner.artist, 'with', winner.votes, 'votes');
         res.json(winner);
     } catch (error) {
         console.error('Error fetching overall winner:', error);
