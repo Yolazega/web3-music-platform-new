@@ -468,10 +468,10 @@ app.post('/upload', uploadLimiter, async (req, res) => {
             keys: Object.keys(videoFile)
         });
         
-        if (!videoFile.tempFilePath) {
-            return res.status(400).json({ error: 'Video file processing error: temporary file path not available' });
+        if (!videoFile.tempFilePath && !videoFile.data) {
+            return res.status(400).json({ error: 'Video file processing error: no temporary file path or data available' });
         }
-        
+
         // Handle different tempFilePath scenarios
         let videoFilePath: string;
         
@@ -500,6 +500,31 @@ app.post('/upload', uploadLimiter, async (req, res) => {
                 return res.status(500).json({ error: 'Video file processing error: failed to create temporary file' });
             }
         }
+        
+        // CRITICAL DEBUG: Ensure videoFilePath is a string
+        console.log('=== CRITICAL DEBUG: videoFilePath validation ===');
+        console.log('videoFilePath value:', videoFilePath);
+        console.log('videoFilePath type:', typeof videoFilePath);
+        console.log('videoFilePath constructor:', (videoFilePath as any)?.constructor?.name);
+        console.log('videoFilePath toString():', String(videoFilePath));
+        
+        // Force conversion to string if needed
+        if (typeof videoFilePath !== 'string') {
+            console.error('CRITICAL ERROR: videoFilePath is not a string!', {
+                type: typeof videoFilePath,
+                value: videoFilePath,
+                constructor: (videoFilePath as any)?.constructor?.name
+            });
+            return res.status(500).json({ error: 'Video file processing error: invalid file path type' });
+        }
+        
+        // Ensure it's a non-empty string
+        if (!videoFilePath || videoFilePath.trim() === '') {
+            console.error('CRITICAL ERROR: videoFilePath is empty!');
+            return res.status(500).json({ error: 'Video file processing error: empty file path' });
+        }
+        
+        console.log('videoFilePath validation passed, proceeding with duration validation');
         
         const durationValidation = await validateVideoDuration(videoFilePath, 120); // 2 minutes = 120 seconds
         

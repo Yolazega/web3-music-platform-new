@@ -102,16 +102,28 @@ export const validateVideoDuration = async (filePath: string, maxDurationSeconds
         console.log(`Validating video duration for: ${filePath}`);
         console.log(`File path type: ${typeof filePath}`);
         console.log(`File path value: ${JSON.stringify(filePath)}`);
+        console.log(`File path constructor: ${(filePath as any)?.constructor?.name}`);
         
-        // Validate input parameter
+        // CRITICAL: Validate input parameter type
         if (typeof filePath !== 'string') {
+            console.error('CRITICAL ERROR: filePath is not a string!', {
+                type: typeof filePath,
+                value: filePath,
+                constructor: (filePath as any)?.constructor?.name
+            });
             return {
                 valid: false,
-                error: `Invalid file path type: expected string, got ${typeof filePath}`
+                error: `Invalid file path type: expected string, got ${typeof filePath}. Value: ${JSON.stringify(filePath)}`
             };
         }
         
-        if (!filePath || filePath.trim() === '') {
+        // Convert to string if it's somehow not a string but stringifiable
+        const stringPath = String(filePath);
+        if (stringPath !== filePath) {
+            console.warn('File path was converted to string:', { original: filePath, converted: stringPath });
+        }
+        
+        if (!stringPath || stringPath.trim() === '') {
             return {
                 valid: false,
                 error: `Invalid file path: empty or null`
@@ -119,17 +131,25 @@ export const validateVideoDuration = async (filePath: string, maxDurationSeconds
         }
         
         // Verify file exists before processing
-        console.log(`Checking if file exists: ${filePath}`);
-        if (!fs.existsSync(filePath)) {
+        console.log(`Checking if file exists: ${stringPath}`);
+        try {
+            if (!fs.existsSync(stringPath)) {
+                return {
+                    valid: false,
+                    error: `Video file not found at path: ${stringPath}`
+                };
+            }
+        } catch (fsError) {
+            console.error('fs.existsSync error:', fsError);
             return {
                 valid: false,
-                error: `Video file not found at path: ${filePath}`
+                error: `File system error checking file existence: ${fsError instanceof Error ? fsError.message : 'Unknown error'}`
             };
         }
         
         console.log(`File exists, proceeding with metadata extraction`);
         
-        const metadata = await getVideoMetadata(filePath);
+        const metadata = await getVideoMetadata(stringPath);
         
         console.log(`Video metadata:`, {
             duration: metadata.duration,
