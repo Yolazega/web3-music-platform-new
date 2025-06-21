@@ -197,22 +197,6 @@ app.get('/tracks', async (req, res) => {
     }
 });
 
-// Get a single track by ID
-app.get('/tracks/:id', async (req, res) => {
-    try {
-        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
-        const track = db.tracks.find((t) => t.id === req.params.id);
-        if (track) {
-            res.json(track);
-        } else {
-            res.status(404).json({ error: 'Track not found' });
-        }
-    } catch (error) {
-        console.error(`Error fetching track ${req.params.id}:`, error);
-        res.status(500).json({ error: 'Failed to fetch track.' });
-    }
-});
-
 // Get top track by genre for homepage
 app.get('/tracks/top-by-genre', async (req, res) => {
     try {
@@ -263,6 +247,22 @@ app.get('/tracks/overall-winner', async (req, res) => {
     } catch (error) {
         console.error('Error fetching overall winner:', error);
         res.status(500).json({ error: 'Failed to fetch overall winner.' });
+    }
+});
+
+// Get a single track by ID (must come after specific routes)
+app.get('/tracks/:id', async (req, res) => {
+    try {
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        const track = db.tracks.find((t) => t.id === req.params.id);
+        if (track) {
+            res.json(track);
+        } else {
+            res.status(404).json({ error: 'Track not found' });
+        }
+    } catch (error) {
+        console.error(`Error fetching track ${req.params.id}:`, error);
+        res.status(500).json({ error: 'Failed to fetch track.' });
     }
 });
 
