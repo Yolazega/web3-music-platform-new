@@ -5,6 +5,7 @@ import {
     type Chain,
     createPublicClient,
     http,
+    fallback,
     type PublicClient,
     formatUnits,
     type Abi
@@ -28,10 +29,16 @@ const amoy = {
   name: 'Polygon Amoy',
   nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://rpc-amoy.polygon.technology/'] },
+    default: { 
+      http: [
+        'https://rpc-amoy.polygon.technology/',
+        'https://polygon-amoy.drpc.org',
+        'https://polygon-amoy-bor-rpc.publicnode.com'
+      ] 
+    },
   },
   blockExplorers: {
-    default: { name: 'PolygonScan', url: 'https://www.oklink.com/amoy' },
+    default: { name: 'PolygonScan', url: 'https://amoy.polygonscan.com' },
   },
   testnet: true,
 } as const satisfies Chain;
@@ -199,10 +206,21 @@ export const axepVotingAbi: Abi = [
   }
 ];
 
-export const getClient = (rpcUrl: string): PublicClient => {
+export const getClient = (rpcUrl?: string): PublicClient => {
+    if (rpcUrl) {
+        return createPublicClient({
+            chain: amoy,
+            transport: http(rpcUrl)
+        });
+    }
+    
+    // Use fallback with multiple RPC URLs for reliability
     return createPublicClient({
         chain: amoy,
-        transport: http(rpcUrl)
+        transport: fallback(
+            amoy.rpcUrls.default.http.map(url => http(url)),
+            { rank: false }
+        )
     });
 };
 
