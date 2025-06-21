@@ -376,14 +376,18 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
-// Health check endpoint
+// Health check endpoint with CORS headers
 app.get('/health', (req: Request, res: Response) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
     res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         memory: process.memoryUsage(),
-        version: process.version
+        version: process.version,
+        cors: 'enabled'
     });
 });
 
@@ -391,7 +395,15 @@ app.get('/health', (req: Request, res: Response) => {
 
 // Explicit OPTIONS handler for upload route
 app.options('/upload', (req, res) => {
-    res.header('Access-Control-Allow-Origin', req.get('Origin') || 'https://www.axepvoting.io');
+    const origin = req.get('Origin');
+    const allowedOrigins = ['http://localhost:3000', 'https://axep-frontend.onrender.com', 'https://www.axepvoting.io'];
+    
+    if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+    } else {
+        res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
+    }
+    
     res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
     res.header('Access-Control-Allow-Credentials', 'true');
@@ -401,6 +413,16 @@ app.options('/upload', (req, res) => {
 
 // Upload a new track - SIMPLIFIED AND OPTIMIZED
 app.post('/upload', async (req, res) => {
+    // Set CORS headers explicitly for this route
+    const origin = req.get('Origin');
+    const allowedOrigins = ['http://localhost:3000', 'https://axep-frontend.onrender.com', 'https://www.axepvoting.io'];
+    
+    if (origin && allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+    } else {
+        res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
+    }
+    res.header('Access-Control-Allow-Credentials', 'true');
     let tempFiles: string[] = [];
 
     try {
