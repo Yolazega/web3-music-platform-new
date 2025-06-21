@@ -26,14 +26,16 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'"],
             scriptSrc: ["'self'"],
             imgSrc: ["'self'", "data:", "https:"],
-            connectSrc: ["'self'", "https:"],
+            connectSrc: ["'self'", "https:", "https://www.axepvoting.io"],
             fontSrc: ["'self'"],
             objectSrc: ["'none'"],
             mediaSrc: ["'self'", "https:"],
             frameSrc: ["'none'"],
+            formAction: ["'self'", "https://axep-backend.onrender.com"],
         },
     },
     crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
 // Enhanced logging
@@ -77,7 +79,18 @@ app.use(cors({
     origin: ['http://localhost:3000', 'https://axep-frontend.onrender.com', 'https://www.axepvoting.io'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'Cache-Control',
+        'X-File-Name'
+    ],
+    exposedHeaders: ['Content-Length', 'X-File-Name'],
+    optionsSuccessStatus: 200, // Support legacy browsers
+    preflightContinue: false
 }));
 
 app.use(express.json({ limit: '500mb' })); // Allows high-quality 2-minute videos up to 4K
@@ -375,6 +388,16 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // --- Enhanced API Endpoints ---
+
+// Explicit OPTIONS handler for upload route
+app.options('/upload', (req, res) => {
+    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
+    res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400'); // 24 hours
+    res.sendStatus(200);
+});
 
 // Upload a new track with comprehensive security
 app.post('/upload', uploadLimiter, async (req, res) => {
