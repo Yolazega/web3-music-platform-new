@@ -42,7 +42,7 @@ const UploadPage: React.FC = () => {
     if (!isOwnerConfirmed) { setFormError('Please confirm you own the rights.'); return; }
     
     setIsUploading(true);
-    setUploadProgress('Uploading files to the server...');
+    setUploadProgress('Uploading files to IPFS... This may take several minutes for large files.');
 
     // Create FormData to send files and text to the backend
     const formData = new FormData();
@@ -55,11 +55,7 @@ const UploadPage: React.FC = () => {
 
     try {
         // Submit to backend
-        const response = await api.post('/upload', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
+        const response = await api.post('/upload', formData);
 
         if (response.status === 201) {
             setUploadProgress('Upload complete! Your track is being processed.');
@@ -73,8 +69,9 @@ const UploadPage: React.FC = () => {
             setVideoFile(null);
             setIsOwnerConfirmed(false);
         }
-    } catch (err: any) {
-        const errorMsg = err.response?.data?.error || err.message || 'An error occurred during the upload process.';
+    } catch (err: unknown) {
+        const error = err as { response?: { data?: { error?: string } }; message?: string };
+        const errorMsg = error.response?.data?.error || error.message || 'An error occurred during the upload process.';
         setFormError(errorMsg);
         setUploadProgress(null);
     } finally {

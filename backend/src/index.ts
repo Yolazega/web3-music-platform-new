@@ -26,9 +26,27 @@ app.use(fileUpload({
     useTempFiles: true,
     tempFileDir: '/tmp/'
 }) as any); // Type assertion to bypass TypeScript error
+
+// Add request timeout middleware for upload routes
+app.use('/upload', (req, res, next) => {
+    req.setTimeout(SERVER_TIMEOUT, () => {
+        console.error('Request timeout on upload route');
+        if (!res.headersSent) {
+            res.status(408).json({ error: 'Request timeout - file upload took too long' });
+        }
+    });
+    res.setTimeout(SERVER_TIMEOUT, () => {
+        console.error('Response timeout on upload route');
+    });
+    next();
+});
+
 app.set('trust proxy', true);
 
 const port = parseInt(process.env.PORT || '3001', 10);
+
+// Configure server timeouts for file uploads
+const SERVER_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
 const dataDir = process.env.RENDER_DISK_MOUNT_PATH || path.join(__dirname, '..', 'data');
 const dbPath = path.join(dataDir, 'db.json');
@@ -134,14 +152,23 @@ app.post('/upload', async (req, res) => {
         
         const checksummedWallet = ethers.getAddress(artistWallet);
 
-        // Upload files separately with detailed logging
+        // Upload files separately with detailed logging and timing
+        console.log('=== STARTING FILE UPLOADS ===');
+        console.log(`Upload started at: ${new Date().toISOString()}`);
+        
         console.log('Uploading video file to Pinata...');
+        const videoStartTime = Date.now();
         const videoUrl = await uploadToPinata(videoFile);
-        console.log('Video uploaded successfully:', videoUrl);
+        const videoUploadTime = Date.now() - videoStartTime;
+        console.log(`Video uploaded successfully in ${videoUploadTime}ms:`, videoUrl);
 
         console.log('Uploading cover image to Pinata...');
+        const imageStartTime = Date.now();
         const coverImageUrl = await uploadToPinata(coverImageFile);
-        console.log('Cover image uploaded successfully:', coverImageUrl);
+        const imageUploadTime = Date.now() - imageStartTime;
+        console.log(`Cover image uploaded successfully in ${imageUploadTime}ms:`, coverImageUrl);
+        
+        console.log(`=== TOTAL UPLOAD TIME: ${videoUploadTime + imageUploadTime}ms ===`);
 
         // Verify URLs are different
         if (videoUrl === coverImageUrl) {
@@ -178,9 +205,23 @@ app.post('/upload', async (req, res) => {
         res.status(201).json({ message: 'Track uploaded successfully.', track: newTrack });
     } catch (error) {
         console.error('Error uploading track:', error);
-        if (error instanceof Error && error.message.includes('invalid address')) {
-            return res.status(400).json({ error: 'A valid, checksummed artist wallet address is required.' });
+        
+        if (error instanceof Error) {
+            if (error.message.includes('invalid address')) {
+                return res.status(400).json({ error: 'A valid, checksummed artist wallet address is required.' });
+            }
+            if (error.message.includes('timeout') || error.message.includes('ECONNABORTED')) {
+                return res.status(408).json({ 
+                    error: 'Upload timeout - your files may be too large or connection is slow. Please try again with smaller files.' 
+                });
+            }
+            if (error.message.includes('IPFS')) {
+                return res.status(503).json({ 
+                    error: 'IPFS upload service temporarily unavailable. Please try again in a few minutes.' 
+                });
+            }
         }
+        
         res.status(500).json({ error: 'Failed to upload track.' });
     }
 });
@@ -627,9 +668,16 @@ app.get('/health/pinata', async (req, res) => {
 // --- Server Initialization ---
 const startServer = async () => {
     await initializeDatabase();
-    app.listen(port, '0.0.0.0', () => {
+    const server = app.listen(port, '0.0.0.0', () => {
         console.log(`Backend server is running on http://0.0.0.0:${port}`);
     });
+    
+    // Configure server timeouts for file uploads
+    server.timeout = SERVER_TIMEOUT;
+    server.keepAliveTimeout = SERVER_TIMEOUT;
+    server.headersTimeout = SERVER_TIMEOUT + 1000; // Slightly higher than server timeout
+    
+    console.log(`Server timeouts configured: ${SERVER_TIMEOUT / 1000}s`);
 };
 
 startServer();
