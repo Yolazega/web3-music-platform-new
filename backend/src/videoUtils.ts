@@ -25,19 +25,27 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
                 value: filePath,
                 constructor: (filePath as any)?.constructor?.name
             });
-            reject(new Error(`Invalid file path type in getVideoMetadata: expected string, got ${typeof filePath}`));
-            return;
+            return reject(new Error(`Invalid file path type: expected string, got ${typeof filePath}`));
         }
         
-        const stringPath = String(filePath);
-        console.log(`Using string path for ffprobe: ${stringPath}`);
+        // FINAL SAFETY: Force string conversion and validate
+        const finalPath = String(filePath).trim();
+        if (!finalPath || finalPath === 'undefined' || finalPath === 'null') {
+            console.error('CRITICAL ERROR: finalPath is invalid after conversion!', {
+                original: filePath,
+                converted: finalPath
+            });
+            return reject(new Error(`Invalid file path after conversion: ${finalPath}`));
+        }
+        
+        console.log('Using final validated path with ffprobe:', finalPath);
         
         const ffprobe = spawn(ffprobeStatic, [
             '-v', 'quiet',
             '-print_format', 'json',
             '-show_format',
             '-show_streams',
-            stringPath  // Use the validated string path
+            finalPath  // Use the validated string path
         ], {
             timeout: 30000 // 30 second timeout
         });

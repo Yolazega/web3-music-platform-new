@@ -556,9 +556,20 @@ app.post('/upload', uploadLimiter, async (req, res) => {
             return res.status(500).json({ error: 'Video file processing error: empty file path' });
         }
         
-        console.log('videoFilePath validation passed, proceeding with duration validation');
+        // FINAL SAFETY CHECK: Force string conversion and validation
+        const finalVideoPath = String(videoFilePath).trim();
+        if (!finalVideoPath || finalVideoPath === 'undefined' || finalVideoPath === 'null') {
+            console.error('CRITICAL ERROR: finalVideoPath is invalid!', {
+                original: videoFilePath,
+                converted: finalVideoPath
+            });
+            return res.status(500).json({ error: 'Video file processing error: invalid final file path' });
+        }
         
-        const durationValidation = await validateVideoDuration(videoFilePath, 120); // 2 minutes = 120 seconds
+        console.log('videoFilePath validation passed, proceeding with duration validation');
+        console.log('Final path to be used:', finalVideoPath);
+        
+        const durationValidation = await validateVideoDuration(finalVideoPath, 120); // 2 minutes = 120 seconds
         
         if (!durationValidation.valid) {
             return res.status(400).json({ 
