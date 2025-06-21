@@ -67,7 +67,7 @@ export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
     const url = `https://api.pinata.cloud/pinning/pinFileToIPFS`;
     const formData = new FormData();
     
-    // Use the file buffer from express-fileupload
+    // Use the file buffer we just read
     formData.append('file', fileBuffer, {
         filename: file.name,
         contentType: file.mimetype

@@ -9,25 +9,97 @@ import { getCurrentWeekNumber, isSubmissionPeriodOver } from './time';
 import { uploadToPinata } from './pinata';
 import { ethers } from 'ethers';
 import axios from 'axios';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import morgan from 'morgan';
 
 dotenv.config();
 
 const app = express();
 
-// Middleware setup
+// Security middleware - MUST be first
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+            connectSrc: ["'self'", "https:"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'", "https:"],
+            frameSrc: ["'none'"],
+        },
+    },
+    crossOriginEmbedderPolicy: false,
+}));
+
+// Enhanced logging
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+// Rate limiting for upload routes
+const uploadLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Limit each IP to 10 uploads per windowMs
+    message: {
+        error: 'Too many upload attempts from this IP, please try again after 15 minutes.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => {
+        // Skip rate limiting in development
+        return process.env.NODE_ENV !== 'production';
+    }
+});
+
+// General API rate limiting
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: {
+        error: 'Too many requests from this IP, please try again after 15 minutes.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => {
+        // Skip rate limiting in development
+        return process.env.NODE_ENV !== 'production';
+    }
+});
+
+// Apply general rate limiting to all routes
+app.use(apiLimiter);
+
+// CORS configuration
 app.use(cors({
     origin: ['http://localhost:3000', 'https://axep-frontend.onrender.com', 'https://www.axepvoting.io'],
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(fileUpload({
-    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
-    useTempFiles: true,
-    tempFileDir: '/tmp/'
-}) as any); // Type assertion to bypass TypeScript error
 
-// Add request timeout middleware for upload routes
+app.use(express.json({ limit: '10mb' })); // Limit JSON payload size
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Enhanced file upload configuration with security measures
+app.use(fileUpload({
+    limits: { 
+        fileSize: 50 * 1024 * 1024, // 50MB limit
+        files: 5, // Maximum 5 files per request
+    },
+    useTempFiles: true,
+    tempFileDir: '/tmp/',
+    createParentPath: true,
+    abortOnLimit: true,
+    responseOnLimit: 'File size limit exceeded',
+    uploadTimeout: 10 * 60 * 1000, // 10 minute timeout
+    // Security: Prevent file path traversal
+    safeFileNames: true,
+    preserveExtension: true,
+}) as any);
+
+// Request timeout middleware for upload routes
 app.use('/upload', (req, res, next) => {
     req.setTimeout(SERVER_TIMEOUT, () => {
         console.error('Request timeout on upload route');
@@ -50,6 +122,105 @@ const SERVER_TIMEOUT = 10 * 60 * 1000; // 10 minutes
 
 const dataDir = process.env.RENDER_DISK_MOUNT_PATH || path.join(__dirname, '..', 'data');
 const dbPath = path.join(dataDir, 'db.json');
+
+// --- Enhanced Security Functions ---
+
+// File type validation using magic numbers
+const validateFileType = (buffer: Buffer, expectedTypes: string[]): boolean => {
+    const signatures: { [key: string]: number[] } = {
+        'image/jpeg': [0xFF, 0xD8, 0xFF],
+        'image/png': [0x89, 0x50, 0x4E, 0x47],
+        'image/gif': [0x47, 0x49, 0x46],
+        'video/mp4': [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // Some MP4 files
+        'video/quicktime': [0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70], // MOV files
+    };
+
+    for (const type of expectedTypes) {
+        const signature = signatures[type];
+        if (signature && buffer.length >= signature.length) {
+            let matches = true;
+            for (let i = 0; i < signature.length; i++) {
+                if (buffer[i] !== signature[i]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) return true;
+        }
+    }
+    return false;
+};
+
+// Enhanced input sanitization
+const sanitizeInput = (input: string, maxLength: number = 100): string => {
+    if (!input || typeof input !== 'string') return '';
+    return input
+        .trim()
+        .slice(0, maxLength)
+        .replace(/[<>\"'&]/g, '') // Remove potentially dangerous characters
+        .replace(/\s+/g, ' '); // Normalize whitespace
+};
+
+// Wallet address validation
+const validateWalletAddress = (address: string): boolean => {
+    try {
+        ethers.getAddress(address);
+        return true;
+    } catch {
+        return false;
+    }
+};
+
+// File validation function
+const validateUploadedFile = async (file: UploadedFile, allowedTypes: string[], maxSize: number): Promise<{ valid: boolean; error?: string }> => {
+    // Check file size
+    if (file.size > maxSize) {
+        return { valid: false, error: `File size exceeds ${Math.round(maxSize / (1024 * 1024))}MB limit` };
+    }
+
+    // Check MIME type
+    if (!allowedTypes.includes(file.mimetype)) {
+        return { valid: false, error: `Invalid file type. Allowed types: ${allowedTypes.join(', ')}` };
+    }
+
+    // Check file extension
+    const ext = path.extname(file.name).toLowerCase();
+    const allowedExtensions: { [key: string]: string[] } = {
+        'image/jpeg': ['.jpg', '.jpeg'],
+        'image/png': ['.png'],
+        'image/gif': ['.gif'],
+        'video/mp4': ['.mp4'],
+        'video/quicktime': ['.mov'],
+    };
+
+    const validExtensions = allowedExtensions[file.mimetype] || [];
+    if (!validExtensions.includes(ext)) {
+        return { valid: false, error: `Invalid file extension for type ${file.mimetype}` };
+    }
+
+    // Read file buffer for magic number validation
+    try {
+        let buffer: Buffer;
+        if (file.tempFilePath) {
+            const fileData = await fs.readFile(file.tempFilePath);
+            buffer = fileData;
+        } else if (file.data) {
+            buffer = file.data;
+        } else {
+            return { valid: false, error: 'Unable to read file data' };
+        }
+
+        // Validate file signature
+        if (!validateFileType(buffer, [file.mimetype])) {
+            return { valid: false, error: 'File content does not match declared type' };
+        }
+
+        return { valid: true };
+    } catch (error) {
+        console.error('File validation error:', error);
+        return { valid: false, error: 'File validation failed' };
+    }
+};
 
 // --- Type Definitions ---
 interface Track {
@@ -97,7 +268,7 @@ interface Database {
 // --- Database Initialization ---
 const initializeDatabase = async () => {
     try {
-        await fs.mkdir(dataDir, { recursive: true });
+        await fs.mkdir(dataDir, { recursive: true, mode: 0o750 });
         await fs.access(dbPath);
     } catch {
         console.log('Database file not found. Creating a new one.');
@@ -105,28 +276,69 @@ const initializeDatabase = async () => {
             tracks: [],
             shares: [],
             votes: [],
-        }, null, 2));
+        }, null, 2), { mode: 0o640 });
     }
 };
 
-
-
 // --- Test Route ---
 app.get('/', (req: Request, res: Response) => {
-  res.send('Hello from the Web3 Music Platform backend!');
+  res.json({ 
+    message: 'Web3 Music Platform API',
+    version: '1.0.0',
+    status: 'operational',
+    timestamp: new Date().toISOString()
+  });
 });
 
-// --- API Endpoints ---
+// Health check endpoint
+app.get('/health', (req: Request, res: Response) => {
+    res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        version: process.version
+    });
+});
 
-// Upload a new track
-app.post('/upload', async (req, res) => {
+// --- Enhanced API Endpoints ---
+
+// Upload a new track with comprehensive security
+app.post('/upload', uploadLimiter, async (req, res) => {
+    const startTime = Date.now();
+    let tempFiles: string[] = [];
+
     try {
+        console.log('=== SECURE UPLOAD REQUEST ===');
+        console.log('Request received at:', new Date().toISOString());
+        console.log('IP Address:', req.ip);
+        console.log('User Agent:', req.get('User-Agent'));
+
         if (process.env.NODE_ENV === 'production' && isSubmissionPeriodOver()) {
             return res.status(400).json({ error: 'The submission period for this week is over.' });
         }
 
-        const { artist, title, artistWallet, genre } = req.body;
-        console.log('Upload request received:', { artist, title, artistWallet, genre });
+        // Enhanced input validation
+        const artist = sanitizeInput(req.body.artist, 50);
+        const title = sanitizeInput(req.body.title, 100);
+        const artistWallet = sanitizeInput(req.body.artistWallet, 42);
+        const genre = sanitizeInput(req.body.genre, 30);
+
+        console.log('Sanitized inputs:', { artist, title, artistWallet, genre });
+
+        // Validate required fields
+        if (!artist || artist.length < 2) {
+            return res.status(400).json({ error: 'Artist name must be at least 2 characters long.' });
+        }
+        if (!title || title.length < 2) {
+            return res.status(400).json({ error: 'Track title must be at least 2 characters long.' });
+        }
+        if (!validateWalletAddress(artistWallet)) {
+            return res.status(400).json({ error: 'Invalid wallet address format.' });
+        }
+        if (!genre || !["Pop", "Soul", "Rock", "Country", "RAP", "Afro / Dancehall", "Electronic", "Instrumental / Other"].includes(genre)) {
+            return res.status(400).json({ error: 'Invalid genre selected.' });
+        }
         
         if (!req.files || Object.keys(req.files).length === 0) {
             return res.status(400).json({ error: 'No files were uploaded.' });
@@ -142,9 +354,35 @@ app.post('/upload', async (req, res) => {
                 hasCoverImage: !!coverImageFile, 
                 hasVideo: !!videoFile 
             });
-            return res.status(400).json({ error: 'Cover image and video file are required.' });
+            return res.status(400).json({ error: 'Both cover image and video file are required.' });
         }
 
+        // Track temp files for cleanup
+        if (coverImageFile.tempFilePath) tempFiles.push(coverImageFile.tempFilePath);
+        if (videoFile.tempFilePath) tempFiles.push(videoFile.tempFilePath);
+
+        // Enhanced file validation
+        const imageValidation = await validateUploadedFile(
+            coverImageFile, 
+            ['image/jpeg', 'image/png', 'image/gif'], 
+            10 * 1024 * 1024 // 10MB for images
+        );
+        
+        if (!imageValidation.valid) {
+            return res.status(400).json({ error: `Cover image validation failed: ${imageValidation.error}` });
+        }
+
+        const videoValidation = await validateUploadedFile(
+            videoFile, 
+            ['video/mp4', 'video/quicktime'], 
+            50 * 1024 * 1024 // 50MB for videos
+        );
+        
+        if (!videoValidation.valid) {
+            return res.status(400).json({ error: `Video validation failed: ${videoValidation.error}` });
+        }
+
+        console.log('File validation passed');
         console.log('File details:', {
             coverImage: { name: coverImageFile.name, size: coverImageFile.size, type: coverImageFile.mimetype },
             video: { name: videoFile.name, size: videoFile.size, type: videoFile.mimetype }
@@ -153,7 +391,7 @@ app.post('/upload', async (req, res) => {
         const checksummedWallet = ethers.getAddress(artistWallet);
 
         // Upload files separately with detailed logging and timing
-        console.log('=== STARTING FILE UPLOADS ===');
+        console.log('=== STARTING SECURE FILE UPLOADS ===');
         console.log(`Upload started at: ${new Date().toISOString()}`);
         
         console.log('Uploading video file to Pinata...');
@@ -170,9 +408,10 @@ app.post('/upload', async (req, res) => {
         
         console.log(`=== TOTAL UPLOAD TIME: ${videoUploadTime + imageUploadTime}ms ===`);
 
-        // Verify URLs are different
+        // Verify URLs are different (security check)
         if (videoUrl === coverImageUrl) {
-            console.error('WARNING: Video and cover image have the same URL!', { videoUrl, coverImageUrl });
+            console.error('CRITICAL: Video and cover image have the same URL!', { videoUrl, coverImageUrl });
+            return res.status(500).json({ error: 'File upload error: Duplicate IPFS hashes detected' });
         }
 
         const newTrack: Track = {
@@ -201,10 +440,42 @@ app.post('/upload', async (req, res) => {
         db.tracks.push(newTrack);
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
-        console.log('Track saved to database successfully');
-        res.status(201).json({ message: 'Track uploaded successfully.', track: newTrack });
+        // Clean up temp files
+        for (const tempFile of tempFiles) {
+            try {
+                await fs.unlink(tempFile);
+                console.log(`Cleaned up temp file: ${tempFile}`);
+            } catch (error) {
+                console.warn(`Failed to clean up temp file ${tempFile}:`, error);
+            }
+        }
+
+        const totalTime = Date.now() - startTime;
+        console.log(`Track saved to database successfully in ${totalTime}ms total`);
+        
+        res.status(201).json({ 
+            message: 'Track uploaded successfully.',
+            track: {
+                id: newTrack.id,
+                title: newTrack.title,
+                artist: newTrack.artist,
+                genre: newTrack.genre,
+                status: newTrack.status
+            },
+            processingTime: totalTime
+        });
     } catch (error) {
         console.error('Error uploading track:', error);
+        
+        // Clean up temp files on error
+        for (const tempFile of tempFiles) {
+            try {
+                await fs.unlink(tempFile);
+                console.log(`Cleaned up temp file after error: ${tempFile}`);
+            } catch (cleanupError) {
+                console.warn(`Failed to clean up temp file ${tempFile}:`, cleanupError);
+            }
+        }
         
         if (error instanceof Error) {
             if (error.message.includes('invalid address')) {
@@ -749,19 +1020,99 @@ app.post('/debug/pinata-upload', async (req, res) => {
     }
 });
 
+// Global error handler middleware - MUST be last
+app.use((err: any, req: any, res: any, next: any) => {
+    console.error('Unhandled error:', {
+        message: err.message,
+        stack: err.stack,
+        url: req.url,
+        method: req.method,
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        timestamp: new Date().toISOString()
+    });
+
+    // Clean up any temp files if error occurred during upload
+    if (req.files) {
+        const files = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+        files.forEach((file: any) => {
+            if (file.tempFilePath) {
+                fs.unlink(file.tempFilePath).catch(console.warn);
+            }
+        });
+    }
+
+    // Don't leak error details in production
+    const message = process.env.NODE_ENV === 'production' 
+        ? 'Internal server error' 
+        : err.message || 'Something went wrong';
+
+    if (!res.headersSent) {
+        res.status(err.status || 500).json({ 
+            error: message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 404 handler for undefined routes
+app.use('*', (req, res) => {
+    res.status(404).json({ 
+        error: 'Route not found',
+        path: req.originalUrl,
+        method: req.method,
+        timestamp: new Date().toISOString()
+    });
+});
+
 // --- Server Initialization ---
 const startServer = async () => {
-    await initializeDatabase();
-    const server = app.listen(port, '0.0.0.0', () => {
-        console.log(`Backend server is running on http://0.0.0.0:${port}`);
-    });
-    
-    // Configure server timeouts for file uploads
-    server.timeout = SERVER_TIMEOUT;
-    server.keepAliveTimeout = SERVER_TIMEOUT;
-    server.headersTimeout = SERVER_TIMEOUT + 1000; // Slightly higher than server timeout
-    
-    console.log(`Server timeouts configured: ${SERVER_TIMEOUT / 1000}s`);
+    try {
+        await initializeDatabase();
+        
+        const server = app.listen(port, '0.0.0.0', () => {
+            console.log(`🚀 Backend server is running on http://0.0.0.0:${port}`);
+            console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`⏱️  Server timeouts configured: ${SERVER_TIMEOUT / 1000}s`);
+            console.log(`🔒 Security features enabled: Helmet, Rate Limiting, CORS`);
+        });
+        
+        // Configure server timeouts for file uploads
+        server.timeout = SERVER_TIMEOUT;
+        server.keepAliveTimeout = SERVER_TIMEOUT;
+        server.headersTimeout = SERVER_TIMEOUT + 1000; // Slightly higher than server timeout
+        
+        // Graceful shutdown handling
+        const gracefulShutdown = (signal: string) => {
+            console.log(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+            server.close((err) => {
+                if (err) {
+                    console.error('❌ Error during server shutdown:', err);
+                    process.exit(1);
+                }
+                console.log('✅ Server closed successfully');
+                process.exit(0);
+            });
+        };
+
+        process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+        process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+        
+        // Handle uncaught exceptions
+        process.on('uncaughtException', (err) => {
+            console.error('💥 Uncaught Exception:', err);
+            process.exit(1);
+        });
+
+        process.on('unhandledRejection', (reason, promise) => {
+            console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+            process.exit(1);
+        });
+
+    } catch (error) {
+        console.error('❌ Failed to start server:', error);
+        process.exit(1);
+    }
 };
 
 startServer();
