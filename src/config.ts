@@ -16,12 +16,12 @@ export const AMOY_RPC_URL = AMOY_RPC_URLS[0]; // Keep for backward compatibility
 export const AXP_TOKEN_DECIMALS = 18;
 export const IPFS_GATEWAY_URL = 'https://gateway.pinata.cloud/ipfs/';
 
-// Gas configuration for Polygon Amoy - higher limits due to testnet instability
+// Optimized gas configuration for Polygon Amoy - reduced fees for better UX
 export const GAS_CONFIG = {
     DEFAULT_GAS_LIMIT: BigInt(3000000),
     BATCH_OPERATION_GAS_LIMIT: BigInt(8000000), // Increased for batch operations
-    MAX_FEE_PER_GAS: BigInt(50000000000), // 50 gwei
-    MAX_PRIORITY_FEE_PER_GAS: BigInt(2000000000), // 2 gwei
+    MAX_FEE_PER_GAS: BigInt(5000000000), // 5 gwei (reduced from 50 gwei)
+    MAX_PRIORITY_FEE_PER_GAS: BigInt(1000000000), // 1 gwei (reduced from 2 gwei)
 };
 
 export const AXEP_VOTING_CONTRACT_ABI = [

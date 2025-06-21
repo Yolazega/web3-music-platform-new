@@ -69,7 +69,11 @@ const HomePage: React.FC = () => {
     return (
         <Container maxWidth="lg" sx={{ mt: 4, textAlign: 'center' }}>
             <Typography variant="h2" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
-                VOTE SHARE CLAIM
+                AXEP | Decentralized Music Voting
+            </Typography>
+            
+            <Typography variant="h5" component="h2" gutterBottom sx={{ mb: 4, color: 'text.secondary' }}>
+                Vote for your favorite tracks, share on social media, and earn AXP tokens
             </Typography>
 
 
@@ -118,10 +122,39 @@ const HomePage: React.FC = () => {
                     </Box>
                 </Grid>
                 <Grid item xs={12} md={6}>
-                     {/* This section replaces the sub-winners */}
-                    <Button variant="contained" size="large" sx={{ py: 2, px: 5, fontSize: '1.2rem' }}>
-                        Connect Wallet
-                    </Button>
+                    <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center' }}>
+                        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold' }}>
+                            Ready to Participate?
+                        </Typography>
+                        
+                        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+                            <Button 
+                                component={Link} 
+                                to="/voting" 
+                                variant="contained" 
+                                color="primary"
+                                size="large" 
+                                sx={{ py: 2, px: 4, fontSize: '1.1rem' }}
+                            >
+                                Vote Now
+                            </Button>
+                            
+                            <Button 
+                                component={Link} 
+                                to="/upload" 
+                                variant="outlined" 
+                                color="primary"
+                                size="large" 
+                                sx={{ py: 2, px: 4, fontSize: '1.1rem' }}
+                            >
+                                Submit Track
+                            </Button>
+                        </Box>
+                        
+                        <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', maxWidth: 400 }}>
+                            Connect your wallet to vote for tracks, submit your music, and earn AXP tokens through social sharing.
+                        </Typography>
+                    </Box>
                 </Grid>
             </Grid>
         </Container>
