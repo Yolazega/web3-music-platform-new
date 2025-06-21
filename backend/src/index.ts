@@ -358,6 +358,48 @@ app.post('/test-upload', async (req, res) => {
     }
 });
 
+// Debug file upload data (without Pinata upload)
+app.post('/debug-files', async (req, res) => {
+    try {
+        console.log('=== FILE DEBUG ENDPOINT ===');
+        console.log('Request body keys:', Object.keys(req.body));
+        console.log('Request files:', req.files ? Object.keys(req.files) : 'No files');
+        
+        if (!req.files || Object.keys(req.files).length === 0) {
+            return res.status(400).json({ error: 'No files were uploaded.' });
+        }
+
+        const results: any = {};
+        const fileKeys = Object.keys(req.files);
+
+        for (const key of fileKeys) {
+            const file = req.files[key] as UploadedFile;
+            
+            // Create MD5 hash of file content
+            const crypto = require('crypto');
+            const hash = crypto.createHash('md5').update(file.data).digest('hex');
+            
+            results[key] = {
+                name: file.name,
+                size: file.size,
+                mimetype: file.mimetype,
+                dataType: typeof file.data,
+                isBuffer: Buffer.isBuffer(file.data),
+                dataLength: file.data ? file.data.length : 0,
+                contentMD5: hash,
+                preview: file.data ? file.data.slice(0, 50).toString() : 'No data'
+            };
+            
+            console.log(`File ${key}:`, results[key]);
+        }
+
+        res.json({ message: 'File debug completed', files: results });
+    } catch (error) {
+        console.error('File debug error:', error);
+        res.status(500).json({ error: 'File debug failed' });
+    }
+});
+
 // --- Admin Panel Endpoints ---
 
 app.get('/admin/submissions', async (req, res) => {
