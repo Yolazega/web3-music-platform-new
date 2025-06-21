@@ -1,6 +1,7 @@
 import axios from 'axios';
 import FormData from 'form-data';
 import dotenv from 'dotenv';
+import fs from 'fs';
 import { UploadedFile } from 'express-fileupload';
 
 dotenv.config();
