@@ -21,6 +21,14 @@ export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
     }
 
     console.log(`Starting Pinata upload for file: ${file.name} (${file.size} bytes, ${file.mimetype})`);
+    console.log(`File data type: ${typeof file.data}, isBuffer: ${Buffer.isBuffer(file.data)}`);
+    console.log(`File data length: ${file.data ? file.data.length : 'undefined'}`);
+    
+    // Log first few bytes of file content for debugging
+    if (file.data && file.data.length > 0) {
+        const preview = file.data.slice(0, Math.min(50, file.data.length)).toString();
+        console.log(`File content preview: ${preview}`);
+    }
 
     // Validate file
     if (!file.data || file.size === 0) {
@@ -54,9 +62,17 @@ export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
             throw new Error('IPFS hash not found in Pinata response.');
         }
         
-        // Construct the full gateway URL
-        const fullUrl = `${IPFS_GATEWAY_URL}${ipfsHash}`;
+        // Construct the full gateway URL - use ipfs.io for better reliability
+        const fullUrl = `https://ipfs.io/ipfs/${ipfsHash}`;
         console.log(`File ${file.name} uploaded successfully to: ${fullUrl}`);
+        
+        // Test the URL to make sure it's accessible
+        try {
+            const testResponse = await axios.head(fullUrl, { timeout: 10000 });
+            console.log(`URL test successful for ${file.name}, status: ${testResponse.status}`);
+        } catch (testError) {
+            console.warn(`URL test failed for ${file.name}, but continuing:`, testError instanceof Error ? testError.message : 'Unknown error');
+        }
         
         return fullUrl;
     } catch (error) {
