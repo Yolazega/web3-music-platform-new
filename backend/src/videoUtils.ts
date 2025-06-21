@@ -100,14 +100,34 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
 export const validateVideoDuration = async (filePath: string, maxDurationSeconds: number = 120): Promise<{ valid: boolean; error?: string; duration?: number }> => {
     try {
         console.log(`Validating video duration for: ${filePath}`);
+        console.log(`File path type: ${typeof filePath}`);
+        console.log(`File path value: ${JSON.stringify(filePath)}`);
+        
+        // Validate input parameter
+        if (typeof filePath !== 'string') {
+            return {
+                valid: false,
+                error: `Invalid file path type: expected string, got ${typeof filePath}`
+            };
+        }
+        
+        if (!filePath || filePath.trim() === '') {
+            return {
+                valid: false,
+                error: `Invalid file path: empty or null`
+            };
+        }
         
         // Verify file exists before processing
+        console.log(`Checking if file exists: ${filePath}`);
         if (!fs.existsSync(filePath)) {
             return {
                 valid: false,
                 error: `Video file not found at path: ${filePath}`
             };
         }
+        
+        console.log(`File exists, proceeding with metadata extraction`);
         
         const metadata = await getVideoMetadata(filePath);
         

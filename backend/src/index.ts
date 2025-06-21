@@ -84,13 +84,30 @@ app.use(express.json({ limit: '500mb' })); // Allows high-quality 2-minute video
 app.use(express.urlencoded({ extended: true, limit: '500mb' })); // Allows high-quality 2-minute videos up to 4K
 
 // Enhanced file upload configuration with security measures
+const tempDir = process.env.NODE_ENV === 'production' ? 
+    (process.env.RENDER_DISK_MOUNT_PATH ? path.join(process.env.RENDER_DISK_MOUNT_PATH, 'tmp') : '/tmp/') : 
+    '/tmp/';
+
+console.log(`Using temp directory: ${tempDir}`);
+
+// Ensure temp directory exists (async function to avoid top-level await)
+const ensureTempDir = async () => {
+    try {
+        await fs.mkdir(tempDir, { recursive: true });
+        console.log(`Temp directory created/verified: ${tempDir}`);
+    } catch (error) {
+        console.error(`Failed to create temp directory: ${error}`);
+    }
+};
+ensureTempDir();
+
 app.use(fileUpload({
     limits: { 
         fileSize: 500 * 1024 * 1024, // 500MB limit (allows 4K quality 2-minute videos)
         files: 5, // Maximum 5 files per request
     },
     useTempFiles: true,
-    tempFileDir: '/tmp/',
+    tempFileDir: tempDir,
     createParentPath: true,
     abortOnLimit: false, // Let our custom handler deal with size limits
     responseOnLimit: 'File size limit exceeded - maximum 500MB per file. Videos must be 2 minutes or less.',
@@ -98,7 +115,7 @@ app.use(fileUpload({
     // Security: Prevent file path traversal
     safeFileNames: true,
     preserveExtension: true,
-    debug: process.env.NODE_ENV !== 'production', // Enable debug in development
+    debug: true, // Always enable debug for troubleshooting
 }) as any);
 
 // Request timeout middleware for upload routes
@@ -440,12 +457,51 @@ app.post('/upload', uploadLimiter, async (req, res) => {
 
         // CRITICAL: Validate video duration (2 minutes max)
         console.log('Validating video duration...');
+        console.log('Video file object structure:', {
+            name: videoFile.name,
+            size: videoFile.size,
+            mimetype: videoFile.mimetype,
+            tempFilePath: videoFile.tempFilePath,
+            tempFilePathType: typeof videoFile.tempFilePath,
+            hasData: !!videoFile.data,
+            dataType: typeof videoFile.data,
+            keys: Object.keys(videoFile)
+        });
         
         if (!videoFile.tempFilePath) {
             return res.status(400).json({ error: 'Video file processing error: temporary file path not available' });
         }
         
-        const durationValidation = await validateVideoDuration(videoFile.tempFilePath, 120); // 2 minutes = 120 seconds
+        // Handle different tempFilePath scenarios
+        let videoFilePath: string;
+        
+        if (typeof videoFile.tempFilePath === 'string' && videoFile.tempFilePath.trim() !== '') {
+            videoFilePath = videoFile.tempFilePath;
+            console.log('Using existing tempFilePath:', videoFilePath);
+        } else {
+            // Fallback: create our own temp file
+            console.log('tempFilePath not available or invalid, creating manual temp file');
+            console.log('tempFilePath value:', videoFile.tempFilePath);
+            console.log('tempFilePath type:', typeof videoFile.tempFilePath);
+            
+            if (!videoFile.data) {
+                return res.status(400).json({ error: 'Video file processing error: no file data available' });
+            }
+            
+            const tempFileName = `video_${Date.now()}_${Math.random().toString(36).substring(7)}.tmp`;
+            videoFilePath = path.join(tempDir, tempFileName);
+            
+            try {
+                await fs.writeFile(videoFilePath, videoFile.data);
+                console.log('Created manual temp file:', videoFilePath);
+                tempFiles.push(videoFilePath); // Add to cleanup list
+            } catch (error) {
+                console.error('Failed to create manual temp file:', error);
+                return res.status(500).json({ error: 'Video file processing error: failed to create temporary file' });
+            }
+        }
+        
+        const durationValidation = await validateVideoDuration(videoFilePath, 120); // 2 minutes = 120 seconds
         
         if (!durationValidation.valid) {
             return res.status(400).json({ 
