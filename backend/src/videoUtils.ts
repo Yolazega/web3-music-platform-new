@@ -15,14 +15,9 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
         console.log(`Starting ffprobe for file: ${filePath}`);
         console.log(`getVideoMetadata - filePath type: ${typeof filePath}`);
         console.log(`getVideoMetadata - filePath value: ${JSON.stringify(filePath)}`);
-        console.log(`getVideoMetadata - filePath constructor: ${(filePath as any)?.constructor?.name}`);
-        console.log(`Using ffprobe binary: ${ffprobeStatic}`);
-        console.log(`ffprobeStatic type: ${typeof ffprobeStatic}`);
-        console.log(`ffprobeStatic value: ${JSON.stringify(ffprobeStatic)}`);
-        console.log(`ffprobeStatic constructor: ${(ffprobeStatic as any)?.constructor?.name}`);
         
-        // CRITICAL: Get the correct binary path
-        const ffprobePath = typeof ffprobeStatic === 'string' ? ffprobeStatic : (ffprobeStatic as any)?.path;
+        // CRITICAL: Get the correct binary path from ffprobe-static
+        const ffprobePath = ffprobeStatic.path;
         console.log(`ffprobePath extracted: ${ffprobePath}`);
         console.log(`ffprobePath type: ${typeof ffprobePath}`);
         
@@ -31,7 +26,6 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
             console.error('CRITICAL ERROR: ffprobePath is not a string!', {
                 type: typeof ffprobePath,
                 value: ffprobePath,
-                constructor: (ffprobePath as any)?.constructor?.name,
                 originalStatic: ffprobeStatic
             });
             return reject(new Error(`ffprobe binary path is not a string: ${typeof ffprobePath}`));
@@ -41,8 +35,7 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
         if (typeof filePath !== 'string') {
             console.error('CRITICAL ERROR in getVideoMetadata: filePath is not a string!', {
                 type: typeof filePath,
-                value: filePath,
-                constructor: (filePath as any)?.constructor?.name
+                value: filePath
             });
             return reject(new Error(`Invalid file path type: expected string, got ${typeof filePath}`));
         }
@@ -64,7 +57,7 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
             '-print_format', 'json',
             '-show_format',
             '-show_streams',
-            finalPath  // Use the validated string path
+            finalPath
         ], {
             timeout: 30000 // 30 second timeout
         });
@@ -110,6 +103,7 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
                 const width = videoStream.width || 0;
                 const height = videoStream.height || 0;
                 const bitrate = parseInt(metadata.format.bit_rate) || 0;
+                
                 // Safely parse frame rate (e.g., "30/1" -> 30, "25/1" -> 25)
                 let fps = 30; // default
                 if (videoStream.r_frame_rate && typeof videoStream.r_frame_rate === 'string') {
@@ -144,30 +138,20 @@ export const getVideoMetadata = async (filePath: string): Promise<VideoMetadata>
 export const validateVideoDuration = async (filePath: string, maxDurationSeconds: number = 120): Promise<{ valid: boolean; error?: string; duration?: number }> => {
     try {
         console.log(`Validating video duration for: ${filePath}`);
-        console.log(`File path type: ${typeof filePath}`);
-        console.log(`File path value: ${JSON.stringify(filePath)}`);
-        console.log(`File path constructor: ${(filePath as any)?.constructor?.name}`);
         
         // CRITICAL: Validate input parameter type
         if (typeof filePath !== 'string') {
             console.error('CRITICAL ERROR: filePath is not a string!', {
                 type: typeof filePath,
-                value: filePath,
-                constructor: (filePath as any)?.constructor?.name
+                value: filePath
             });
             return {
                 valid: false,
-                error: `Invalid file path type: expected string, got ${typeof filePath}. Value: ${JSON.stringify(filePath)}`
+                error: `Invalid file path type: expected string, got ${typeof filePath}`
             };
         }
         
-        // Convert to string if it's somehow not a string but stringifiable
-        const stringPath = String(filePath);
-        if (stringPath !== filePath) {
-            console.warn('File path was converted to string:', { original: filePath, converted: stringPath });
-        }
-        
-        if (!stringPath || stringPath.trim() === '') {
+        if (!filePath || filePath.trim() === '') {
             return {
                 valid: false,
                 error: `Invalid file path: empty or null`
@@ -175,12 +159,12 @@ export const validateVideoDuration = async (filePath: string, maxDurationSeconds
         }
         
         // Verify file exists before processing
-        console.log(`Checking if file exists: ${stringPath}`);
+        console.log(`Checking if file exists: ${filePath}`);
         try {
-            if (!fs.existsSync(stringPath)) {
+            if (!fs.existsSync(filePath)) {
                 return {
                     valid: false,
-                    error: `Video file not found at path: ${stringPath}`
+                    error: `Video file not found at path: ${filePath}`
                 };
             }
         } catch (fsError) {
@@ -193,30 +177,30 @@ export const validateVideoDuration = async (filePath: string, maxDurationSeconds
         
         console.log(`File exists, proceeding with metadata extraction`);
         
-        const metadata = await getVideoMetadata(stringPath);
+        const metadata = await getVideoMetadata(filePath);
         
         console.log(`Video metadata:`, {
             duration: metadata.duration,
             width: metadata.width,
             height: metadata.height,
-            bitrate: metadata.bitrate,
-            fps: metadata.fps
+            maxAllowed: maxDurationSeconds
         });
-
+        
         if (metadata.duration > maxDurationSeconds) {
             return {
                 valid: false,
-                error: `Video duration is ${Math.round(metadata.duration)}s. Maximum allowed is ${maxDurationSeconds}s (2 minutes).`,
+                error: `Video duration ${metadata.duration.toFixed(2)} seconds exceeds maximum allowed ${maxDurationSeconds} seconds`,
                 duration: metadata.duration
             };
         }
-
+        
         return {
             valid: true,
             duration: metadata.duration
         };
+        
     } catch (error) {
-        console.error('Video duration validation error:', error);
+        console.error('Error validating video duration:', error);
         return {
             valid: false,
             error: `Failed to validate video duration: ${error instanceof Error ? error.message : 'Unknown error'}`
