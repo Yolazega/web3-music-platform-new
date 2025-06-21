@@ -360,11 +360,13 @@ const AdminPage: React.FC = () => {
             
             let errorMsg = "An error occurred during publishing.";
             
-            // Handle different types of errors
-            if (err.message?.includes('User rejected')) {
+            // Handle different types of errors with specific guidance
+            if (err.message?.includes('Internal JSON-RPC error')) {
+                errorMsg = "🔄 Network connectivity issue detected. This is a known Polygon Amoy testnet problem. The retry mechanism will automatically attempt the transaction again.";
+            } else if (err.message?.includes('User rejected')) {
                 errorMsg = "Transaction was rejected by user.";
             } else if (err.message?.includes('insufficient funds')) {
-                errorMsg = "Insufficient funds for gas fees.";
+                errorMsg = "Insufficient MATIC balance for gas fees. Please add more MATIC to your wallet.";
             } else if (err.message?.includes('Array length mismatch')) {
                 errorMsg = err.message;
             } else if (err.message?.includes('Invalid wallet address')) {
@@ -375,6 +377,8 @@ const AdminPage: React.FC = () => {
                 errorMsg = err.message;
             } else if (err.message?.includes('Contract simulation failed')) {
                 errorMsg = err.message;
+            } else if (err.message?.includes('Transaction failed after all retry attempts')) {
+                errorMsg = "⚠️ Multiple retry attempts failed. Please check your network connection and try again in a few minutes.";
             } else if (err.shortMessage) {
                 errorMsg = err.shortMessage;
             } else if (err.message) {

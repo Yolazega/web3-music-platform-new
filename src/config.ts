@@ -2,13 +2,14 @@ export const AXEP_VOTING_CONTRACT_ADDRESS = "0x83072BC70659AB6aCcd0A46C05bF2748F
 export const AXP_TOKEN_CONTRACT_ADDRESS = '0xa1edD20366dbAc7341DE5fdb9FE1711Fb9EAD4d4';
 export const AMOY_CHAIN_ID = '0x13882';
 
-// Multiple RPC endpoints for better reliability - prioritized by stability
+// Multiple RPC endpoints for better reliability - prioritized by performance
 export const AMOY_RPC_URLS = [
-    'https://rpc-amoy.polygon.technology/',
-    'https://polygon-amoy.drpc.org',
-    'https://polygon-amoy-bor-rpc.publicnode.com',
-    'https://rpc.ankr.com/polygon_amoy',
-    'https://polygon-amoy.blockpi.network/v1/rpc/public'
+    'https://polygon-amoy-bor-rpc.publicnode.com', // Fastest: 115ms
+    'https://polygon-amoy.drpc.org',               // Fast: 176ms  
+    'https://rpc-amoy.polygon.technology/',        // Reliable: 181ms
+    // Removed failing endpoints:
+    // 'https://rpc.ankr.com/polygon_amoy',        // Requires API key
+    // 'https://polygon-amoy.blockpi.network/v1/rpc/public' // Timeout issues
 ];
 
 export const AMOY_RPC_URL = AMOY_RPC_URLS[0]; // Keep for backward compatibility
