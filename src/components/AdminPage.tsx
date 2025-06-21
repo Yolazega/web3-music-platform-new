@@ -6,7 +6,7 @@ import {
     CircularProgress, Card, CardContent, Grid, Alert, Box, Typography, Link, Snackbar
 } from '@mui/material';
 import { useWriteContract, useAccount } from 'wagmi';
-import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI } from '../config';
+import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI, GAS_CONFIG } from '../config';
 import { ethers } from 'ethers';
 import { parseEventLogs } from 'viem';
 import { readContract } from 'viem/actions';
@@ -274,20 +274,50 @@ const AdminPage: React.FC = () => {
             
             setSnackbar({ open: true, message: "4/6: Please approve the transaction in your wallet..." });
 
-            const hash = await writeContractAsync({
-                address: AXEP_VOTING_CONTRACT_ADDRESS,
-                abi: AXEP_VOTING_CONTRACT_ABI,
-                functionName: 'batchRegisterAndUpload',
-                args: [
-                    trackData.artistWallets,
-                    trackData.artistNames,
-                    trackData.trackTitles,
-                    trackData.genres,
-                    trackData.videoUrls,
-                    trackData.coverImageUrls,
-                ],
-                gas: BigInt(5000000), // Increase gas limit further for batch operations
-            });
+            // Retry logic for Polygon Amoy testnet instability
+            const maxRetries = 3;
+            let retryCount = 0;
+            let hash: `0x${string}` | undefined;
+            
+            while (retryCount < maxRetries) {
+                try {
+                    hash = await writeContractAsync({
+                        address: AXEP_VOTING_CONTRACT_ADDRESS,
+                        abi: AXEP_VOTING_CONTRACT_ABI,
+                        functionName: 'batchRegisterAndUpload',
+                        args: [
+                            trackData.artistWallets,
+                            trackData.artistNames,
+                            trackData.trackTitles,
+                            trackData.genres,
+                            trackData.videoUrls,
+                            trackData.coverImageUrls,
+                        ],
+                        gas: GAS_CONFIG.BATCH_OPERATION_GAS_LIMIT,
+                        maxFeePerGas: GAS_CONFIG.MAX_FEE_PER_GAS,
+                        maxPriorityFeePerGas: GAS_CONFIG.MAX_PRIORITY_FEE_PER_GAS,
+                    });
+                    break; // Success, exit retry loop
+                } catch (retryError: any) {
+                    retryCount++;
+                    console.warn(`Transaction attempt ${retryCount} failed:`, retryError.message);
+                    
+                    if (retryCount >= maxRetries) {
+                        throw retryError; // Final attempt failed
+                    }
+                    
+                    if (retryError.message?.includes('User rejected')) {
+                        throw retryError; // Don't retry user rejections
+                    }
+                    
+                    setSnackbar({ open: true, message: `4/6: Retry ${retryCount}/${maxRetries} - Network issue, retrying...` });
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+                }
+            }
+            
+            if (!hash) {
+                throw new Error('Transaction failed after all retry attempts');
+            }
 
             setSnackbar({ open: true, message: `5/6: Transaction sent! Waiting for confirmation...` });
 

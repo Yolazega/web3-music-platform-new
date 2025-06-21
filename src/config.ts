@@ -2,17 +2,26 @@ export const AXEP_VOTING_CONTRACT_ADDRESS = "0x83072BC70659AB6aCcd0A46C05bF2748F
 export const AXP_TOKEN_CONTRACT_ADDRESS = '0xa1edD20366dbAc7341DE5fdb9FE1711Fb9EAD4d4';
 export const AMOY_CHAIN_ID = '0x13882';
 
-// Multiple RPC endpoints for better reliability
+// Multiple RPC endpoints for better reliability - prioritized by stability
 export const AMOY_RPC_URLS = [
     'https://rpc-amoy.polygon.technology/',
     'https://polygon-amoy.drpc.org',
     'https://polygon-amoy-bor-rpc.publicnode.com',
-    'https://amoy.polygon.quiknode.pro/8b6b2f2c7b8a4c8e8e8e8e8e8e8e8e8e/'
+    'https://rpc.ankr.com/polygon_amoy',
+    'https://polygon-amoy.blockpi.network/v1/rpc/public'
 ];
 
 export const AMOY_RPC_URL = AMOY_RPC_URLS[0]; // Keep for backward compatibility
 export const AXP_TOKEN_DECIMALS = 18;
 export const IPFS_GATEWAY_URL = 'https://gateway.pinata.cloud/ipfs/';
+
+// Gas configuration for Polygon Amoy - higher limits due to testnet instability
+export const GAS_CONFIG = {
+    DEFAULT_GAS_LIMIT: BigInt(3000000),
+    BATCH_OPERATION_GAS_LIMIT: BigInt(8000000), // Increased for batch operations
+    MAX_FEE_PER_GAS: BigInt(50000000000), // 50 gwei
+    MAX_PRIORITY_FEE_PER_GAS: BigInt(2000000000), // 2 gwei
+};
 
 export const AXEP_VOTING_CONTRACT_ABI = [
     {
