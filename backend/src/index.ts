@@ -107,21 +107,45 @@ app.post('/upload', async (req, res) => {
         }
 
         const { artist, title, artistWallet, genre } = req.body;
+        console.log('Upload request received:', { artist, title, artistWallet, genre });
+        
         if (!req.files || Object.keys(req.files).length === 0) {
             return res.status(400).json({ error: 'No files were uploaded.' });
         }
+
+        console.log('Files received:', Object.keys(req.files));
 
         const coverImageFile = req.files.coverImageFile as UploadedFile;
         const videoFile = req.files.videoFile as UploadedFile;
 
         if (!coverImageFile || !videoFile) {
+            console.error('Missing files:', { 
+                hasCoverImage: !!coverImageFile, 
+                hasVideo: !!videoFile 
+            });
             return res.status(400).json({ error: 'Cover image and video file are required.' });
         }
+
+        console.log('File details:', {
+            coverImage: { name: coverImageFile.name, size: coverImageFile.size, type: coverImageFile.mimetype },
+            video: { name: videoFile.name, size: videoFile.size, type: videoFile.mimetype }
+        });
         
         const checksummedWallet = ethers.getAddress(artistWallet);
 
+        // Upload files separately with detailed logging
+        console.log('Uploading video file to Pinata...');
         const videoUrl = await uploadToPinata(videoFile);
+        console.log('Video uploaded successfully:', videoUrl);
+
+        console.log('Uploading cover image to Pinata...');
         const coverImageUrl = await uploadToPinata(coverImageFile);
+        console.log('Cover image uploaded successfully:', coverImageUrl);
+
+        // Verify URLs are different
+        if (videoUrl === coverImageUrl) {
+            console.error('WARNING: Video and cover image have the same URL!', { videoUrl, coverImageUrl });
+        }
 
         const newTrack: Track = {
             id: uuidv4(),
@@ -139,10 +163,17 @@ app.post('/upload', async (req, res) => {
             videoUrl,
         };
 
+        console.log('Track object created:', {
+            id: newTrack.id,
+            coverImageUrl: newTrack.coverImageUrl,
+            videoUrl: newTrack.videoUrl
+        });
+
         const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
         db.tracks.push(newTrack);
         await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
 
+        console.log('Track saved to database successfully');
         res.status(201).json({ message: 'Track uploaded successfully.', track: newTrack });
     } catch (error) {
         console.error('Error uploading track:', error);
