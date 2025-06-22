@@ -1,0 +1,15 @@
+node_modules
+dist
+*.log
+.git
+.gitignore
+.DS_Store
+*.md
+.env*
+!env.template
+backend.log
+.npm
+.nyc_output
+coverage
+.cache
+.parcel-cache 
