@@ -377,17 +377,35 @@ app.get('/', (req: Request, res: Response) => {
 });
 
 // Health check endpoint with CORS headers
-app.get('/health', (req: Request, res: Response) => {
-    res.header('Access-Control-Allow-Origin', '*');
+app.get('/health', (req, res) => {
+    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Origin');
+    
+    const uptime = process.uptime();
+    const memoryUsage = process.memoryUsage();
+    
     res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
+        uptime: uptime,
+        memory: memoryUsage,
         version: process.version,
         cors: 'enabled'
+    });
+});
+
+// Wake-up endpoint to prevent sleeping (Render free tier)
+app.get('/wake', (req, res) => {
+    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
+    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Origin');
+    
+    console.log('Backend wake-up call received');
+    res.json({ 
+        status: 'awake', 
+        timestamp: new Date().toISOString(),
+        message: 'Backend is now active and ready to serve requests'
     });
 });
 
@@ -1126,6 +1144,24 @@ app.post('/debug/pinata-upload', async (req, res) => {
             details: error instanceof Error ? error.message : 'Unknown error'
         });
     }
+});
+
+// EXPLICIT OPTIONS HANDLERS FOR ADMIN ROUTES (CORS FIX)
+app.options('/admin/*', (req, res) => {
+    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.sendStatus(200);
+});
+
+// Additional explicit CORS headers for admin routes
+app.use('/admin/*', (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    next();
 });
 
 // Global error handler middleware - MUST be last
