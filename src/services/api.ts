@@ -14,6 +14,59 @@ const api = axios.create({
   },
 });
 
+// Wake up the backend if it's sleeping (Render free tier issue)
+const wakeUpBackend = async (): Promise<boolean> => {
+  try {
+    console.log('🔄 Waking up backend server...');
+    const response = await axios.get(`${API_URL}/wake`, { timeout: 30000 });
+    console.log('✅ Backend is awake:', response.data.message);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to wake up backend:', error);
+    return false;
+  }
+};
+
+// Check if backend is healthy
+const checkBackendHealth = async (): Promise<boolean> => {
+  try {
+    const response = await axios.get(`${API_URL}/health`, { timeout: 10000 });
+    return response.status === 200;
+  } catch (error) {
+    return false;
+  }
+};
+
+// Enhanced retry mechanism with backend wake-up
+const retryWithWakeup = async (originalRequest: any, maxRetries: number = 3): Promise<any> => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔄 Retry attempt ${attempt}/${maxRetries} for ${originalRequest.url}`);
+      
+      // Try to wake up backend on first retry
+      if (attempt === 1) {
+        await wakeUpBackend();
+        // Wait for backend to fully wake up
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      } else {
+        // Shorter wait for subsequent retries
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      const response = await api(originalRequest);
+      console.log(`✅ Retry ${attempt} successful for ${originalRequest.url}`);
+      return response;
+    } catch (retryError: any) {
+      console.error(`❌ Retry ${attempt} failed:`, retryError.message);
+      
+      // If it's the last attempt, throw the error
+      if (attempt === maxRetries) {
+        throw retryError;
+      }
+    }
+  }
+};
+
 // Add request interceptor for debugging and special handling
 api.interceptors.request.use(
   (config) => {
@@ -71,22 +124,25 @@ api.interceptors.response.use(
       console.error('Connection refused: Backend server is not running on the expected port');
     }
     
-    // Retry logic for 502 Bad Gateway and network errors
-    if (
-      (error.response?.status === 502 || error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED') &&
-      !originalRequest._retry &&
-      originalRequest.method === 'get'
-    ) {
+    // Enhanced retry logic for various error scenarios
+    const shouldRetry = (
+      // 502 Bad Gateway (backend sleeping)
+      error.response?.status === 502 ||
+      // 503 Service Unavailable (backend overloaded)
+      error.response?.status === 503 ||
+      // Network errors
+      error.code === 'ERR_NETWORK' ||
+      error.code === 'ECONNREFUSED' ||
+      error.code === 'ECONNABORTED'
+    );
+    
+    if (shouldRetry && !originalRequest._retry && originalRequest.method?.toLowerCase() === 'get') {
       originalRequest._retry = true;
-      console.log('Retrying request after error:', originalRequest.url);
-      
-      // Wait 2 seconds before retrying for network errors
-      await new Promise(resolve => setTimeout(resolve, 2000));
       
       try {
-        return await api(originalRequest);
+        return await retryWithWakeup(originalRequest);
       } catch (retryError: any) {
-        console.error('Retry failed:', retryError.message || retryError);
+        console.error('All retry attempts failed:', retryError.message || retryError);
         return Promise.reject(retryError);
       }
     }
@@ -95,4 +151,6 @@ api.interceptors.response.use(
   }
 );
 
+// Export additional utility functions
+export { wakeUpBackend, checkBackendHealth };
 export default api; 

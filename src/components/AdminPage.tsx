@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import api from '../services/api';
+import api, { wakeUpBackend, checkBackendHealth } from '../services/api';
 import { Track, Share, Vote } from '../types';
 import {
     Container, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button,
@@ -43,9 +43,37 @@ const AdminPage: React.FC = () => {
     const [isUpdatingShare, setIsUpdatingShare] = useState<Record<string, boolean>>({});
     const [snackbar, setSnackbar] = useState<{ open: boolean, message: string }>({ open: false, message: '' });
     const [isOwner, setIsOwner] = useState<boolean>(false);
+    const [backendStatus, setBackendStatus] = useState<'checking' | 'awake' | 'waking' | 'error'>('checking');
 
     const { writeContractAsync } = useWriteContract();
     const { address: userAddress } = useAccount();
+
+    // Proactive backend wake-up on component mount
+    useEffect(() => {
+        const initializeBackend = async () => {
+            setBackendStatus('checking');
+            
+            // Check if backend is already healthy
+            const isHealthy = await checkBackendHealth();
+            if (isHealthy) {
+                setBackendStatus('awake');
+                return;
+            }
+            
+            // If not healthy, try to wake it up
+            setBackendStatus('waking');
+            const wakeupSuccess = await wakeUpBackend();
+            if (wakeupSuccess) {
+                // Wait a bit for backend to fully initialize
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                setBackendStatus('awake');
+            } else {
+                setBackendStatus('error');
+            }
+        };
+        
+        initializeBackend();
+    }, []);
 
     useEffect(() => {
         const checkOwner = async () => {
@@ -118,8 +146,11 @@ const AdminPage: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        fetchAllData();
-    }, [fetchAllData]);
+        // Only fetch data when backend is confirmed awake
+        if (backendStatus === 'awake') {
+            fetchAllData();
+        }
+    }, [fetchAllData, backendStatus]);
 
     useEffect(() => {
         setFilteredSubmissions(filter === 'all' ? submissions : submissions.filter(s => s.status === filter));
@@ -583,6 +614,18 @@ const AdminPage: React.FC = () => {
     return (
         <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
             <Typography variant="h4" gutterBottom>Admin Dashboard</Typography>
+            
+            {/* Backend Status Indicator */}
+            {backendStatus !== 'awake' && (
+                <Alert 
+                    severity={backendStatus === 'error' ? 'error' : 'info'} 
+                    sx={{ mb: 3 }}
+                >
+                    {backendStatus === 'checking' && '🔍 Checking backend status...'}
+                    {backendStatus === 'waking' && '🔄 Backend is waking up, please wait...'}
+                    {backendStatus === 'error' && '❌ Backend connection failed. Please refresh the page.'}
+                </Alert>
+            )}
 
             <Grid container spacing={3} sx={{ mb: 4 }}>
                 <Grid item xs={12} sm={6} md={3}><Card><CardContent><Typography>Pending Submissions</Typography><Typography variant="h5">{stats.pending}</Typography></CardContent></Card></Grid>
