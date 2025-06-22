@@ -36,36 +36,36 @@ export const publicClient = createPublicClient({
         sampleCount: 5,   // Use 5 samples for ranking
         timeout: 500,     // 500ms timeout for ranking requests
       },
-      retryCount: GAS_CONFIG.MAX_RETRIES, // Use config retry count
-      retryDelay: GAS_CONFIG.RETRY_DELAY, // Use config retry delay
+      retryCount: GAS_CONFIG.STANDARD.MAX_RETRIES, // Use standard config retry count
+      retryDelay: GAS_CONFIG.STANDARD.RETRY_DELAY, // Use standard config retry delay
     }
   ),
   // Enhanced caching for better performance
   cacheTime: 4_000, // Cache responses for 4 seconds
 });
 
-// Helper function to get current gas prices with fallback
+// Helper function to get current gas prices with fallback (uses standard config as default)
 export const getOptimizedGasPrice = async () => {
   try {
     const gasPrice = await publicClient.getGasPrice();
     // Apply buffer to ensure transaction success
     const bufferedGasPrice = BigInt(Math.floor(Number(gasPrice) * GAS_CONFIG.GAS_PRICE_BUFFER));
     
-    // Ensure we don't exceed our maximum configured gas price
-    const finalGasPrice = bufferedGasPrice > GAS_CONFIG.MAX_FEE_PER_GAS 
-      ? GAS_CONFIG.MAX_FEE_PER_GAS 
+    // Ensure we don't exceed our maximum configured gas price (use standard config as default)
+    const finalGasPrice = bufferedGasPrice > GAS_CONFIG.STANDARD.MAX_FEE_PER_GAS 
+      ? GAS_CONFIG.STANDARD.MAX_FEE_PER_GAS 
       : bufferedGasPrice;
     
     return {
       maxFeePerGas: finalGasPrice,
-      maxPriorityFeePerGas: GAS_CONFIG.MAX_PRIORITY_FEE_PER_GAS,
+      maxPriorityFeePerGas: GAS_CONFIG.STANDARD.MAX_PRIORITY_FEE_PER_GAS,
     };
   } catch (error) {
     console.warn('Failed to fetch current gas price, using fallback:', error);
     // Return our conservative defaults if gas price fetching fails
     return {
-      maxFeePerGas: GAS_CONFIG.MAX_FEE_PER_GAS,
-      maxPriorityFeePerGas: GAS_CONFIG.MAX_PRIORITY_FEE_PER_GAS,
+      maxFeePerGas: GAS_CONFIG.STANDARD.MAX_FEE_PER_GAS,
+      maxPriorityFeePerGas: GAS_CONFIG.STANDARD.MAX_PRIORITY_FEE_PER_GAS,
     };
   }
 }; 

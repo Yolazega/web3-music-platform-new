@@ -5,8 +5,8 @@ import {
     Container, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button,
     CircularProgress, Card, CardContent, Grid, Alert, Box, Typography, Link, Snackbar
 } from '@mui/material';
-import { useWriteContract, useAccount } from 'wagmi';
-import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI, GAS_CONFIG } from '../config';
+import { useWriteContract, useAccount, useConnections } from 'wagmi';
+import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI, GAS_CONFIG, getGasConfig, isHardwareWallet } from '../config';
 import { ethers } from 'ethers';
 import { parseEventLogs } from 'viem';
 import { readContract } from 'viem/actions';
@@ -44,9 +44,25 @@ const AdminPage: React.FC = () => {
     const [snackbar, setSnackbar] = useState<{ open: boolean, message: string }>({ open: false, message: '' });
     const [isOwner, setIsOwner] = useState<boolean>(false);
     const [backendStatus, setBackendStatus] = useState<'checking' | 'awake' | 'waking' | 'error'>('checking');
+    const [walletType, setWalletType] = useState<string>('');
+    const [isUsingHardwareWallet, setIsUsingHardwareWallet] = useState<boolean>(false);
 
     const { writeContractAsync } = useWriteContract();
     const { address: userAddress } = useAccount();
+    const connections = useConnections();
+
+    // Detect if user is using a hardware wallet
+    useEffect(() => {
+        if (connections && connections.length > 0) {
+            const activeConnection = connections[0];
+            if (activeConnection?.connector?.name) {
+                const walletName = activeConnection.connector.name;
+                setWalletType(walletName);
+                setIsUsingHardwareWallet(isHardwareWallet(walletName));
+                console.log('Detected wallet:', walletName, 'Hardware wallet:', isHardwareWallet(walletName));
+            }
+        }
+    }, [connections]);
 
     // Proactive backend wake-up on component mount
     useEffect(() => {
@@ -424,14 +440,23 @@ const AdminPage: React.FC = () => {
                 throw new Error(`Contract simulation failed: ${simulationError.shortMessage || simulationError.message}`);
             }
             
-            setSnackbar({ open: true, message: "4/6: Please approve the transaction in your wallet..." });
-
             // Get optimized gas prices for Polygon Amoy
             const gasConfig = await getOptimizedGasPrice();
             console.log('Using optimized gas prices:', gasConfig);
 
+            // Get wallet-specific configuration for hardware wallet optimization
+            const walletGasConfig = getGasConfig(walletType);
+            console.log('Using wallet-specific gas config:', walletGasConfig, 'for wallet:', walletType);
+
+            // Hardware wallet specific messaging
+            if (isUsingHardwareWallet) {
+                setSnackbar({ open: true, message: "4/6: Hardware wallet detected. Please confirm on your device (this may take longer)..." });
+            } else {
+                setSnackbar({ open: true, message: "4/6: Please approve the transaction in your wallet..." });
+            }
+
             // Retry logic for Polygon Amoy testnet instability with exponential backoff
-            const maxRetries = GAS_CONFIG.MAX_RETRIES;
+            const maxRetries = walletGasConfig.MAX_RETRIES;
             let retryCount = 0;
             let hash: `0x${string}` | undefined;
             
@@ -450,8 +475,8 @@ const AdminPage: React.FC = () => {
                             trackData.coverImageUrls,
                         ],
                         gas: GAS_CONFIG.BATCH_OPERATION_GAS_LIMIT,
-                        maxFeePerGas: gasConfig.maxFeePerGas,
-                        maxPriorityFeePerGas: gasConfig.maxPriorityFeePerGas,
+                        maxFeePerGas: walletGasConfig.MAX_FEE_PER_GAS,
+                        maxPriorityFeePerGas: walletGasConfig.MAX_PRIORITY_FEE_PER_GAS,
                     });
                     console.log(`Transaction successful on attempt ${retryCount + 1}`);
                     break; // Success, exit retry loop
@@ -470,9 +495,22 @@ const AdminPage: React.FC = () => {
                         throw retryError;
                     }
                     
-                    // Exponential backoff: wait longer on each retry
-                    const waitTime = GAS_CONFIG.RETRY_DELAY * Math.pow(2, retryCount - 1);
-                    setSnackbar({ open: true, message: `4/6: Retry ${retryCount}/${maxRetries} - Polygon Amoy network instability detected, retrying in ${waitTime/1000}s...` });
+                    // Hardware wallet specific retry messaging and timing
+                    const waitTime = walletGasConfig.RETRY_DELAY * Math.pow(2, retryCount - 1);
+                    const waitTimeSeconds = Math.round(waitTime / 1000);
+                    
+                    if (isUsingHardwareWallet) {
+                        setSnackbar({ 
+                            open: true, 
+                            message: `4/6: Hardware wallet retry ${retryCount}/${maxRetries} - Please wait ${waitTimeSeconds}s before next confirmation...` 
+                        });
+                    } else {
+                        setSnackbar({ 
+                            open: true, 
+                            message: `4/6: Retry ${retryCount}/${maxRetries} - Network instability detected, retrying in ${waitTimeSeconds}s...` 
+                        });
+                    }
+                    
                     await new Promise(resolve => setTimeout(resolve, waitTime));
                 }
             }
@@ -624,6 +662,16 @@ const AdminPage: React.FC = () => {
                     {backendStatus === 'checking' && '🔍 Checking backend status...'}
                     {backendStatus === 'waking' && '🔄 Backend is waking up, please wait...'}
                     {backendStatus === 'error' && '❌ Backend connection failed. Please refresh the page.'}
+                </Alert>
+            )}
+
+            {/* Hardware Wallet Status Indicator */}
+            {isUsingHardwareWallet && (
+                <Alert 
+                    severity="info" 
+                    sx={{ mb: 3 }}
+                >
+                    🔐 Hardware wallet detected ({walletType}). Optimized settings active: longer timeouts, higher gas limits, and enhanced retry logic for better compatibility.
                 </Alert>
             )}
 

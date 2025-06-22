@@ -13,21 +13,49 @@ export const AMOY_RPC_URL = AMOY_RPC_URLS[0]; // Keep for backward compatibility
 export const AXP_TOKEN_DECIMALS = 18;
 export const IPFS_GATEWAY_URL = 'https://gateway.pinata.cloud/ipfs/';
 
-// Optimized gas configuration for Polygon Amoy - MUCH more conservative
-// Based on debugging: Contract works fine, issue is gas estimation
+// Hardware wallet detection function
+export const isHardwareWallet = (walletName?: string): boolean => {
+    if (!walletName) return false;
+    const hardwareWallets = ['ledger', 'trezor', 'lattice', 'keystone'];
+    return hardwareWallets.some(hw => walletName.toLowerCase().includes(hw));
+};
+
+// Optimized gas configuration for Polygon Amoy
+// Hardware wallet-friendly settings with longer timeouts and more conservative gas
 export const GAS_CONFIG = {
     DEFAULT_GAS_LIMIT: BigInt(3000000),
     BATCH_OPERATION_GAS_LIMIT: BigInt(5000000), // Reduced from 8M - contract is simple
-    // EXTREMELY conservative gas prices - contract simulation works
-    MAX_FEE_PER_GAS: BigInt(1500000000), // 1.5 gwei (reduced from 2.5 gwei)
-    MAX_PRIORITY_FEE_PER_GAS: BigInt(1000000000), // 1 gwei (reduced from 1.5 gwei)
+    
+    // Standard gas prices for software wallets
+    STANDARD: {
+        MAX_FEE_PER_GAS: BigInt(1500000000), // 1.5 gwei
+        MAX_PRIORITY_FEE_PER_GAS: BigInt(1000000000), // 1 gwei
+        RETRY_DELAY: 3000, // 3 seconds between retries
+        MAX_RETRIES: 5,
+        RPC_TIMEOUT: 15000, // 15 seconds
+    },
+    
+    // Hardware wallet optimized settings
+    HARDWARE_WALLET: {
+        MAX_FEE_PER_GAS: BigInt(2000000000), // 2 gwei - slightly higher for reliability
+        MAX_PRIORITY_FEE_PER_GAS: BigInt(1200000000), // 1.2 gwei
+        RETRY_DELAY: 8000, // 8 seconds between retries (hardware wallets are slower)
+        MAX_RETRIES: 3, // Fewer retries to avoid user fatigue
+        RPC_TIMEOUT: 30000, // 30 seconds - hardware wallets need more time
+        CONFIRMATION_TIMEOUT: 120000, // 2 minutes for user to confirm on device
+        GAS_BUFFER: 1.2, // 20% gas buffer for hardware wallet estimation issues
+    },
+    
     // Network reliability settings
-    GAS_PRICE_BUFFER: 1.05, // 5% buffer (reduced from 10%)
-    RETRY_DELAY: 3000, // 3 seconds between retries
-    MAX_RETRIES: 5, // Increased retries since contract works
-    // RPC timeout settings
-    RPC_TIMEOUT: 15000, // 15 seconds
+    GAS_PRICE_BUFFER: 1.05, // 5% buffer
     RETRY_TIMEOUT: 5000, // 5 seconds between RPC retries
+};
+
+// Get gas config based on wallet type
+export const getGasConfig = (walletName?: string) => {
+    return isHardwareWallet(walletName) 
+        ? GAS_CONFIG.HARDWARE_WALLET 
+        : GAS_CONFIG.STANDARD;
 };
 
 export const AXEP_VOTING_CONTRACT_ABI = [
