@@ -1029,6 +1029,57 @@ app.delete('/admin/tracks/:id', async (req, res) => {
     }
 });
 
+// Restore track data (emergency endpoint for data loss on Render free tier)
+app.post('/admin/restore-track', async (req, res) => {
+    try {
+        const trackData = req.body;
+        
+        // Validate required fields
+        if (!trackData.id || !trackData.artist || !trackData.title || !trackData.artistWallet) {
+            return res.status(400).json({ error: 'Missing required track data' });
+        }
+        
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        
+        // Check if track already exists
+        const existingTrack = db.tracks.find(t => t.id === trackData.id);
+        if (existingTrack) {
+            return res.status(409).json({ error: 'Track already exists', track: existingTrack });
+        }
+        
+        // Create track record with provided data
+        const restoredTrack: Track = {
+            id: trackData.id,
+            title: trackData.title,
+            artist: trackData.artist,
+            artistWallet: trackData.artistWallet,
+            filePath: trackData.filePath || '',
+            ipfsHash: trackData.ipfsHash || '',
+            genre: trackData.genre || 'Unknown',
+            status: trackData.status || 'pending',
+            votes: trackData.votes || 0,
+            weekNumber: trackData.weekNumber || getCurrentWeekNumber(),
+            coverImageUrl: trackData.coverImageUrl || '',
+            videoUrl: trackData.videoUrl || '',
+            submittedAt: trackData.submittedAt || new Date().toISOString(),
+            onChainId: trackData.onChainId
+        };
+        
+        db.tracks.push(restoredTrack);
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+        
+        console.log('Restored track:', restoredTrack.title, 'by', restoredTrack.artist);
+        res.json({ 
+            message: 'Track restored successfully', 
+            track: restoredTrack,
+            warning: 'This is an emergency restore due to Render free tier data loss. Consider upgrading to persistent storage.'
+        });
+    } catch (error) {
+        console.error('Error restoring track:', error);
+        res.status(500).json({ error: 'Failed to restore track' });
+    }
+});
+
 // Health check for Pinata configuration
 app.get('/health/pinata', async (req, res) => {
     try {
