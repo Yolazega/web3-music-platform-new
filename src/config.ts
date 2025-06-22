@@ -4,63 +4,253 @@ export const AMOY_CHAIN_ID = '0x13882';
 
 // Multiple RPC endpoints for better reliability - prioritized by performance
 export const AMOY_RPC_URLS = [
-    'https://polygon-amoy-bor-rpc.publicnode.com', // Fastest: 115ms
-    'https://polygon-amoy.drpc.org',               // Fast: 176ms  
-    'https://rpc-amoy.polygon.technology/',        // Reliable: 181ms
-    // Removed failing endpoints:
-    // 'https://rpc.ankr.com/polygon_amoy',        // Requires API key
-    // 'https://polygon-amoy.blockpi.network/v1/rpc/public' // Timeout issues
+    'https://rpc-amoy.polygon.technology', // Primary - most reliable
+    'https://polygon-amoy.drpc.org',       // Secondary - good fallback
+    'https://polygon-amoy-bor-rpc.publicnode.com', // Tertiary - additional fallback
 ];
 
 export const AMOY_RPC_URL = AMOY_RPC_URLS[0]; // Keep for backward compatibility
 export const AXP_TOKEN_DECIMALS = 18;
 export const IPFS_GATEWAY_URL = 'https://gateway.pinata.cloud/ipfs/';
 
-// Optimized gas configuration for Polygon Amoy - reduced fees for better UX
+// Optimized gas configuration for Polygon Amoy - MUCH more conservative
+// Based on debugging: Contract works fine, issue is gas estimation
 export const GAS_CONFIG = {
     DEFAULT_GAS_LIMIT: BigInt(3000000),
-    BATCH_OPERATION_GAS_LIMIT: BigInt(8000000), // Increased for batch operations
-    MAX_FEE_PER_GAS: BigInt(5000000000), // 5 gwei (reduced from 50 gwei)
-    MAX_PRIORITY_FEE_PER_GAS: BigInt(1000000000), // 1 gwei (reduced from 2 gwei)
+    BATCH_OPERATION_GAS_LIMIT: BigInt(5000000), // Reduced from 8M - contract is simple
+    // EXTREMELY conservative gas prices - contract simulation works
+    MAX_FEE_PER_GAS: BigInt(1500000000), // 1.5 gwei (reduced from 2.5 gwei)
+    MAX_PRIORITY_FEE_PER_GAS: BigInt(1000000000), // 1 gwei (reduced from 1.5 gwei)
+    // Network reliability settings
+    GAS_PRICE_BUFFER: 1.05, // 5% buffer (reduced from 10%)
+    RETRY_DELAY: 3000, // 3 seconds between retries
+    MAX_RETRIES: 5, // Increased retries since contract works
+    // RPC timeout settings
+    RPC_TIMEOUT: 15000, // 15 seconds
+    RETRY_TIMEOUT: 5000, // 5 seconds between RPC retries
 };
 
 export const AXEP_VOTING_CONTRACT_ABI = [
     {
       "inputs": [
         {
-          "internalType": "address",
-          "name": "_tokenAddress",
-          "type": "address"
+          "internalType": "address[]",
+          "name": "artistWallets",
+          "type": "address[]"
+        },
+        {
+          "internalType": "string[]",
+          "name": "artistNames",
+          "type": "string[]"
+        },
+        {
+          "internalType": "string[]",
+          "name": "trackTitles",
+          "type": "string[]"
+        },
+        {
+          "internalType": "string[]",
+          "name": "genres",
+          "type": "string[]"
+        },
+        {
+          "internalType": "string[]",
+          "name": "videoUrls",
+          "type": "string[]"
+        },
+        {
+          "internalType": "string[]",
+          "name": "coverImageUrls",
+          "type": "string[]"
         }
       ],
+      "name": "batchRegisterAndUpload",
+      "outputs": [],
       "stateMutability": "nonpayable",
-      "type": "constructor"
+      "type": "function"
     },
     {
       "inputs": [
         {
-          "internalType": "address",
-          "name": "owner",
-          "type": "address"
+          "internalType": "uint256[]",
+          "name": "_trackIds",
+          "type": "uint256[]"
+        },
+        {
+          "internalType": "uint256[]",
+          "name": "_voteCounts",
+          "type": "uint256[]"
         }
       ],
-      "name": "OwnableInvalidOwner",
-      "type": "error"
+      "name": "adminBatchVote",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getOfficialGenres",
+      "outputs": [
+        {
+          "internalType": "string[]",
+          "name": "",
+          "type": "string[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getAllTrackIds",
+      "outputs": [
+        {
+          "internalType": "uint256[]",
+          "name": "",
+          "type": "uint256[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
     },
     {
       "inputs": [
         {
+          "internalType": "uint256",
+          "name": "trackId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getTrack",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "id",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "artistId",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "title",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "genre",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "videoUrl",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "coverImageUrl",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "uploadTimestamp",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct AxepVoting.Track",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "artistId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getArtist",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "id",
+              "type": "uint256"
+            },
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "address payable",
+              "name": "artistWallet",
+              "type": "address"
+            },
+            {
+              "internalType": "bool",
+              "name": "isRegistered",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct AxepVoting.Artist",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "trackId",
+          "type": "uint256"
+        }
+      ],
+      "name": "getVoteCount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
           "internalType": "address",
-          "name": "account",
+          "name": "",
           "type": "address"
         }
       ],
-      "name": "OwnableUnauthorizedAccount",
-      "type": "error"
+      "stateMutability": "view",
+      "type": "function"
     },
     {
       "anonymous": false,
       "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "trackId",
+          "type": "uint256"
+        },
         {
           "indexed": true,
           "internalType": "uint256",
@@ -70,17 +260,29 @@ export const AXEP_VOTING_CONTRACT_ABI = [
         {
           "indexed": false,
           "internalType": "string",
-          "name": "name",
+          "name": "title",
           "type": "string"
         },
         {
-          "indexed": true,
-          "internalType": "address",
-          "name": "artistWallet",
-          "type": "address"
+          "indexed": false,
+          "internalType": "string",
+          "name": "genre",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "videoUrl",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "coverImageUrl",
+          "type": "string"
         }
       ],
-      "name": "ArtistRegistered",
+      "name": "TrackUploaded",
       "type": "event"
     },
     {
@@ -163,49 +365,6 @@ export const AXEP_VOTING_CONTRACT_ABI = [
         },
         {
           "indexed": true,
-          "internalType": "uint256",
-          "name": "artistId",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
-          "internalType": "string",
-          "name": "title",
-          "type": "string"
-        },
-        {
-          "indexed": false,
-          "internalType": "string",
-          "name": "genre",
-          "type": "string"
-        },
-        {
-          "indexed": false,
-          "internalType": "string",
-          "name": "videoUrl",
-          "type": "string"
-        },
-        {
-          "indexed": false,
-          "internalType": "string",
-          "name": "coverImageUrl",
-          "type": "string"
-        }
-      ],
-      "name": "TrackUploaded",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "uint256",
-          "name": "trackId",
-          "type": "uint256"
-        },
-        {
-          "indexed": true,
           "internalType": "address",
           "name": "voter",
           "type": "address"
@@ -268,154 +427,6 @@ export const AXEP_VOTING_CONTRACT_ABI = [
       "inputs": [
         {
           "internalType": "uint256[]",
-          "name": "_trackIds",
-          "type": "uint256[]"
-        },
-        {
-          "internalType": "uint256[]",
-          "name": "_voteCounts",
-          "type": "uint256[]"
-        }
-      ],
-      "name": "adminBatchVote",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "allTrackIds",
-      "outputs": [
-        {
-          "internalType": "uint256[]",
-          "name": "",
-          "type": "uint256[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "artists",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "id",
-          "type": "uint256"
-        },
-        {
-          "internalType": "string",
-          "name": "name",
-          "type": "string"
-        },
-        {
-          "internalType": "address payable",
-          "name": "artistWallet",
-          "type": "address"
-        },
-        {
-          "internalType": "bool",
-          "name": "isRegistered",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "artistIdByWallet",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "axpToken",
-      "outputs": [
-        {
-          "internalType": "contract IERC20",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address[]",
-          "name": "artistWallets",
-          "type": "address[]"
-        },
-        {
-          "internalType": "string[]",
-          "name": "artistNames",
-          "type": "string[]"
-        },
-        {
-          "internalType": "string[]",
-          "name": "trackTitles",
-          "type": "string[]"
-        },
-        {
-          "internalType": "string[]",
-          "name": "genres",
-          "type": "string[]"
-        },
-        {
-          "internalType": "string[]",
-          "name": "videoUrls",
-          "type": "string[]"
-        },
-        {
-          "internalType": "string[]",
-          "name": "coverImageUrls",
-          "type": "string[]"
-        }
-      ],
-      "name": "batchRegisterAndUpload",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "currentVotingPeriod",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256[]",
           "name": "_trackIdsForPeriod",
           "type": "uint256[]"
         }
@@ -427,155 +438,7 @@ export const AXEP_VOTING_CONTRACT_ABI = [
     },
     {
       "inputs": [],
-      "name": "getAllTrackIds",
-      "outputs": [
-        {
-          "internalType": "uint256[]",
-          "name": "",
-          "type": "uint256[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "artistId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getArtist",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "uint256",
-              "name": "id",
-              "type": "uint256"
-            },
-            {
-              "internalType": "string",
-              "name": "name",
-              "type": "string"
-            },
-            {
-              "internalType": "address payable",
-              "name": "artistWallet",
-              "type": "address"
-            },
-            {
-              "internalType": "bool",
-              "name": "isRegistered",
-              "type": "bool"
-            }
-          ],
-          "internalType": "struct AxepVoting.Artist",
-          "name": "",
-          "type": "tuple"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "getOfficialGenres",
-      "outputs": [
-        {
-          "internalType": "string[]",
-          "name": "",
-          "type": "string[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "trackId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getTrack",
-      "outputs": [
-        {
-          "components": [
-            {
-              "internalType": "uint256",
-              "name": "id",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "artistId",
-              "type": "uint256"
-            },
-            {
-              "internalType": "string",
-              "name": "title",
-              "type": "string"
-            },
-            {
-              "internalType": "string",
-              "name": "genre",
-              "type": "string"
-            },
-            {
-              "internalType": "string",
-              "name": "videoUrl",
-              "type": "string"
-            },
-            {
-              "internalType": "string",
-              "name": "coverImageUrl",
-              "type": "string"
-            },
-            {
-              "internalType": "uint256",
-              "name": "uploadTimestamp",
-              "type": "uint256"
-            }
-          ],
-          "internalType": "struct AxepVoting.Track",
-          "name": "",
-          "type": "tuple"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "string",
-          "name": "genre",
-          "type": "string"
-        }
-      ],
-      "name": "getTrackIdsByGenre",
-      "outputs": [
-        {
-          "internalType": "uint256[]",
-          "name": "",
-          "type": "uint256[]"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "trackId",
-          "type": "uint256"
-        }
-      ],
-      "name": "getVoteCount",
+      "name": "currentVotingPeriod",
       "outputs": [
         {
           "internalType": "uint256",
@@ -716,15 +579,9 @@ export const AXEP_VOTING_CONTRACT_ABI = [
     },
     {
       "inputs": [],
-      "name": "owner",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "stateMutability": "view",
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

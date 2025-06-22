@@ -10,7 +10,7 @@ import { AXEP_VOTING_CONTRACT_ADDRESS, AXEP_VOTING_CONTRACT_ABI, GAS_CONFIG } fr
 import { ethers } from 'ethers';
 import { parseEventLogs } from 'viem';
 import { readContract } from 'viem/actions';
-import { publicClient } from '../client';
+import { publicClient, getOptimizedGasPrice } from '../client';
 
 interface ShareSubmission {
     id: string;
@@ -211,8 +211,24 @@ const AdminPage: React.FC = () => {
                 coverImageUrls: tracksToPublish.map(t => t.coverImageUrl || ''),
             };
 
-            // Log data for debugging
+            // COMPREHENSIVE DATA VALIDATION AND LOGGING
+            console.log('=== DEBUGGING CONTRACT DATA ===');
             console.log('Track data to be sent to contract:', trackData);
+            console.log('Number of tracks to publish:', tracksToPublish.length);
+            
+            // Log each track individually for debugging
+            tracksToPublish.forEach((track, index) => {
+                console.log(`Track ${index}:`, {
+                    id: track.id,
+                    artist: track.artist,
+                    title: track.title,
+                    genre: track.genre,
+                    artistWallet: track.artistWallet,
+                    videoUrl: track.videoUrl,
+                    coverImageUrl: track.coverImageUrl,
+                    status: track.status
+                });
+            });
             
             // Validate that all arrays have the same length
             const lengths = [
@@ -224,36 +240,126 @@ const AdminPage: React.FC = () => {
                 trackData.coverImageUrls.length
             ];
             
+            console.log('Array lengths:', lengths);
             if (new Set(lengths).size !== 1) {
                 throw new Error(`Array length mismatch: ${lengths.join(', ')}`);
             }
 
-            // Validate wallet addresses
-            for (const wallet of trackData.artistWallets) {
-                if (!wallet || !wallet.startsWith('0x') || wallet.length !== 42) {
-                    throw new Error(`Invalid wallet address: ${wallet}`);
-                }
-            }
-
-            // Validate required fields and genres
-            for (let i = 0; i < trackData.artistNames.length; i++) {
-                if (!trackData.artistNames[i]) throw new Error(`Missing artist name at index ${i}`);
-                if (!trackData.trackTitles[i]) throw new Error(`Missing track title at index ${i}`);
-                if (!trackData.genres[i]) throw new Error(`Missing genre at index ${i}`);
-                if (!trackData.videoUrls[i]) throw new Error(`Missing video URL at index ${i}`);
-                if (!trackData.coverImageUrls[i]) throw new Error(`Missing cover image URL at index ${i}`);
+            // DETAILED VALIDATION OF EACH FIELD
+            for (let i = 0; i < trackData.artistWallets.length; i++) {
+                console.log(`\n=== Validating Track ${i} ===`);
                 
-                // Validate genre against contract
-                if (!officialGenres.includes(trackData.genres[i])) {
-                    throw new Error(`Invalid genre "${trackData.genres[i]}" at index ${i}. Valid genres: ${officialGenres.join(', ')}`);
+                // Validate wallet address
+                const wallet = trackData.artistWallets[i];
+                console.log('Wallet:', wallet);
+                if (!wallet) {
+                    throw new Error(`Missing wallet address at index ${i}`);
                 }
+                if (typeof wallet !== 'string') {
+                    throw new Error(`Wallet address at index ${i} is not a string: ${typeof wallet}`);
+                }
+                if (!wallet.startsWith('0x')) {
+                    throw new Error(`Invalid wallet address format at index ${i}: ${wallet} (must start with 0x)`);
+                }
+                if (wallet.length !== 42) {
+                    throw new Error(`Invalid wallet address length at index ${i}: ${wallet} (must be 42 characters, got ${wallet.length})`);
+                }
+                
+                // Validate artist name
+                const artistName = trackData.artistNames[i];
+                console.log('Artist name:', artistName);
+                if (!artistName) {
+                    throw new Error(`Missing artist name at index ${i}`);
+                }
+                if (typeof artistName !== 'string') {
+                    throw new Error(`Artist name at index ${i} is not a string: ${typeof artistName}`);
+                }
+                if (artistName.trim().length === 0) {
+                    throw new Error(`Empty artist name at index ${i}`);
+                }
+                
+                // Validate track title
+                const trackTitle = trackData.trackTitles[i];
+                console.log('Track title:', trackTitle);
+                if (!trackTitle) {
+                    throw new Error(`Missing track title at index ${i}`);
+                }
+                if (typeof trackTitle !== 'string') {
+                    throw new Error(`Track title at index ${i} is not a string: ${typeof trackTitle}`);
+                }
+                if (trackTitle.trim().length === 0) {
+                    throw new Error(`Empty track title at index ${i}`);
+                }
+                
+                // Validate genre
+                const genre = trackData.genres[i];
+                console.log('Genre:', genre);
+                if (!genre) {
+                    throw new Error(`Missing genre at index ${i}`);
+                }
+                if (typeof genre !== 'string') {
+                    throw new Error(`Genre at index ${i} is not a string: ${typeof genre}`);
+                }
+                if (!officialGenres.includes(genre)) {
+                    throw new Error(`Invalid genre "${genre}" at index ${i}. Valid genres: ${officialGenres.join(', ')}`);
+                }
+                
+                // Validate video URL
+                const videoUrl = trackData.videoUrls[i];
+                console.log('Video URL:', videoUrl);
+                if (!videoUrl) {
+                    throw new Error(`Missing video URL at index ${i}`);
+                }
+                if (typeof videoUrl !== 'string') {
+                    throw new Error(`Video URL at index ${i} is not a string: ${typeof videoUrl}`);
+                }
+                if (videoUrl.trim().length === 0) {
+                    throw new Error(`Empty video URL at index ${i}`);
+                }
+                // Check if it's a valid IPFS URL format
+                if (!videoUrl.startsWith('https://') && !videoUrl.startsWith('ipfs://') && !videoUrl.startsWith('Qm')) {
+                    console.warn(`Video URL at index ${i} might not be a valid IPFS URL: ${videoUrl}`);
+                }
+                
+                // Validate cover image URL
+                const coverImageUrl = trackData.coverImageUrls[i];
+                console.log('Cover image URL:', coverImageUrl);
+                if (!coverImageUrl) {
+                    throw new Error(`Missing cover image URL at index ${i}`);
+                }
+                if (typeof coverImageUrl !== 'string') {
+                    throw new Error(`Cover image URL at index ${i} is not a string: ${typeof coverImageUrl}`);
+                }
+                if (coverImageUrl.trim().length === 0) {
+                    throw new Error(`Empty cover image URL at index ${i}`);
+                }
+                // Check if it's a valid IPFS URL format
+                if (!coverImageUrl.startsWith('https://') && !coverImageUrl.startsWith('ipfs://') && !coverImageUrl.startsWith('Qm')) {
+                    console.warn(`Cover image URL at index ${i} might not be a valid IPFS URL: ${coverImageUrl}`);
+                }
+                
+                console.log(`✅ Track ${i} validation passed`);
             }
+            
+            console.log('=== ALL VALIDATION PASSED ===');
 
             setSnackbar({ open: true, message: "3/6: Simulating transaction..." });
 
             // First simulate the transaction to catch errors early
             try {
-                await publicClient.simulateContract({
+                console.log('=== SIMULATING CONTRACT CALL ===');
+                console.log('Contract address:', AXEP_VOTING_CONTRACT_ADDRESS);
+                console.log('User address:', userAddress);
+                console.log('Args being sent:', [
+                    trackData.artistWallets,
+                    trackData.artistNames,
+                    trackData.trackTitles,
+                    trackData.genres,
+                    trackData.videoUrls,
+                    trackData.coverImageUrls,
+                ]);
+                
+                const simulationResult = await publicClient.simulateContract({
                     address: AXEP_VOTING_CONTRACT_ADDRESS,
                     abi: AXEP_VOTING_CONTRACT_ABI,
                     functionName: 'batchRegisterAndUpload',
@@ -267,15 +373,34 @@ const AdminPage: React.FC = () => {
                     ],
                     account: userAddress,
                 });
+                
+                console.log('✅ Contract simulation successful:', simulationResult);
             } catch (simulationError: any) {
-                console.error('Contract simulation failed:', simulationError);
+                console.error('❌ Contract simulation failed:', simulationError);
+                console.error('Simulation error details:', {
+                    message: simulationError.message,
+                    shortMessage: simulationError.shortMessage,
+                    details: simulationError.details,
+                    cause: simulationError.cause,
+                    data: simulationError.data
+                });
+                
+                // Try to decode the revert reason if available
+                if (simulationError.data) {
+                    console.error('Raw error data:', simulationError.data);
+                }
+                
                 throw new Error(`Contract simulation failed: ${simulationError.shortMessage || simulationError.message}`);
             }
             
             setSnackbar({ open: true, message: "4/6: Please approve the transaction in your wallet..." });
 
-            // Retry logic for Polygon Amoy testnet instability
-            const maxRetries = 3;
+            // Get optimized gas prices for Polygon Amoy
+            const gasConfig = await getOptimizedGasPrice();
+            console.log('Using optimized gas prices:', gasConfig);
+
+            // Retry logic for Polygon Amoy testnet instability with exponential backoff
+            const maxRetries = GAS_CONFIG.MAX_RETRIES;
             let retryCount = 0;
             let hash: `0x${string}` | undefined;
             
@@ -294,9 +419,10 @@ const AdminPage: React.FC = () => {
                             trackData.coverImageUrls,
                         ],
                         gas: GAS_CONFIG.BATCH_OPERATION_GAS_LIMIT,
-                        maxFeePerGas: GAS_CONFIG.MAX_FEE_PER_GAS,
-                        maxPriorityFeePerGas: GAS_CONFIG.MAX_PRIORITY_FEE_PER_GAS,
+                        maxFeePerGas: gasConfig.maxFeePerGas,
+                        maxPriorityFeePerGas: gasConfig.maxPriorityFeePerGas,
                     });
+                    console.log(`Transaction successful on attempt ${retryCount + 1}`);
                     break; // Success, exit retry loop
                 } catch (retryError: any) {
                     retryCount++;
@@ -306,12 +432,17 @@ const AdminPage: React.FC = () => {
                         throw retryError; // Final attempt failed
                     }
                     
-                    if (retryError.message?.includes('User rejected')) {
-                        throw retryError; // Don't retry user rejections
+                    // Don't retry user rejections or certain error types
+                    if (retryError.message?.includes('User rejected') || 
+                        retryError.message?.includes('User denied') ||
+                        retryError.message?.includes('insufficient funds')) {
+                        throw retryError;
                     }
                     
-                    setSnackbar({ open: true, message: `4/6: Retry ${retryCount}/${maxRetries} - Network issue, retrying...` });
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds before retry
+                    // Exponential backoff: wait longer on each retry
+                    const waitTime = GAS_CONFIG.RETRY_DELAY * Math.pow(2, retryCount - 1);
+                    setSnackbar({ open: true, message: `4/6: Retry ${retryCount}/${maxRetries} - Polygon Amoy network instability detected, retrying in ${waitTime/1000}s...` });
+                    await new Promise(resolve => setTimeout(resolve, waitTime));
                 }
             }
             
@@ -360,9 +491,9 @@ const AdminPage: React.FC = () => {
             
             let errorMsg = "An error occurred during publishing.";
             
-            // Handle different types of errors with specific guidance
+            // Handle different types of errors with specific guidance based on research
             if (err.message?.includes('Internal JSON-RPC error')) {
-                errorMsg = "🔄 Network connectivity issue detected. This is a known Polygon Amoy testnet problem. The retry mechanism will automatically attempt the transaction again.";
+                errorMsg = "🔄 Polygon Amoy Network Issue: This is a known testnet instability problem. The optimized retry mechanism has attempted the transaction multiple times. Please wait a few minutes and try again, or switch to a different RPC endpoint.";
             } else if (err.message?.includes('User rejected')) {
                 errorMsg = "Transaction was rejected by user.";
             } else if (err.message?.includes('insufficient funds')) {

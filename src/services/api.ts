@@ -49,29 +49,44 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    console.error('API Response Error:', error.response?.status, error.response?.data, error.config?.url);
+    // Improved error logging with proper checks
+    if (error.response) {
+      // Server responded with error status
+      console.error('API Response Error:', error.response.status, error.response.data, error.config?.url);
+    } else if (error.request) {
+      // Request was made but no response received (network error, backend down, etc.)
+      console.error('API Network Error: No response received', error.message, error.config?.url);
+      console.error('This usually means the backend server is not running or not accessible');
+    } else {
+      // Something else happened in setting up the request
+      console.error('API Request Setup Error:', error.message, error.config?.url);
+    }
     
     // Handle specific error cases
     if (error.code === 'ECONNABORTED') {
       console.error('Request timed out. File might be too large or connection is slow.');
+    } else if (error.code === 'ERR_NETWORK') {
+      console.error('Network error: Please check if the backend server is running');
+    } else if (error.code === 'ECONNREFUSED') {
+      console.error('Connection refused: Backend server is not running on the expected port');
     }
     
     // Retry logic for 502 Bad Gateway and network errors
     if (
-      (error.response?.status === 502 || error.code === 'ERR_NETWORK') &&
+      (error.response?.status === 502 || error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED') &&
       !originalRequest._retry &&
       originalRequest.method === 'get'
     ) {
       originalRequest._retry = true;
-      console.log('Retrying request after 502/network error:', originalRequest.url);
+      console.log('Retrying request after error:', originalRequest.url);
       
-      // Wait 1 second before retrying
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait 2 seconds before retrying for network errors
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       try {
         return await api(originalRequest);
-      } catch (retryError) {
-        console.error('Retry failed:', retryError);
+      } catch (retryError: any) {
+        console.error('Retry failed:', retryError.message || retryError);
         return Promise.reject(retryError);
       }
     }
