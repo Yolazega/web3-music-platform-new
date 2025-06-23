@@ -2,7 +2,7 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider, ConnectButton } from '@rainbow-me/rainbowkit';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { wagmiConfig, queryClient } from './services/walletService';
+import { wagmiConfig, queryClient } from './wagmi';
 import './App.css';
 import '@rainbow-me/rainbowkit/styles.css';
 

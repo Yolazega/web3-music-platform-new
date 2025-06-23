@@ -1,5 +1,21 @@
 {
-  "tracks": [],
+  "tracks": [
+    {
+      "id": "3eb72581-a53a-4510-bd1f-b8fe0feb190a",
+      "title": "Immer Weiter",
+      "artist": "AF",
+      "artistWallet": "0x5a758cfEF3CE878Bb5FABA93D18781409938e8eB",
+      "filePath": "",
+      "ipfsHash": "QmVigyQ2iaFzRtMUJP9ptyWQ5uTEtzvaJkHr6BwvGfQjjq",
+      "genre": "RAP",
+      "status": "approved",
+      "votes": 0,
+      "weekNumber": 76,
+      "coverImageUrl": "https://ipfs.io/ipfs/QmdVPpByPLbhuPrrTPR6KyA99aBPUHZgouFoES4ek1HLGX",
+      "videoUrl": "https://ipfs.io/ipfs/QmVigyQ2iaFzRtMUJP9ptyWQ5uTEtzvaJkHr6BwvGfQjjq",
+      "submittedAt": "2025-06-22T15:31:27.507Z"
+    }
+  ],
   "shares": [],
   "votes": []
 }

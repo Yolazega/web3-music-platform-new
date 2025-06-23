@@ -3,7 +3,7 @@ import axios from 'axios';
 // Determine the base URL based on the environment
 const API_URL = import.meta.env.VITE_BACKEND_URL || 
   (import.meta.env.PROD
-    ? 'https://axep-backend.onrender.com' // Hardcoded backend URL for production
+    ? 'https://axep-backend-production.up.railway.app' // Updated Railway backend URL
     : 'http://localhost:3001'); // Local development URL
 
 const api = axios.create({

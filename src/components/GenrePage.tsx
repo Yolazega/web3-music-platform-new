@@ -31,6 +31,12 @@ const GenrePage: React.FC = () => {
         fetchGenreTracks();
     }, [genreName]);
 
+    const handleTrackDelete = (deletedTrackId: string) => {
+        setTracks(prevTracks => 
+            prevTracks.filter(track => track.id !== deletedTrackId)
+        );
+    };
+
     return (
         <Container maxWidth="lg" sx={{ mt: 4 }}>
             <Typography variant="h4" component="h1" gutterBottom sx={{ textTransform: 'capitalize' }}>
@@ -51,7 +57,7 @@ const GenrePage: React.FC = () => {
                 <Grid container spacing={4}>
                     {tracks.map(track => (
                         <Grid item key={track.id} xs={12} sm={6} md={4}>
-                           <TrackCard track={track} />
+                           <TrackCard track={track} onDelete={handleTrackDelete} />
                         </Grid>
                     ))}
                 </Grid>

@@ -17,6 +17,11 @@ const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || IPFS_GATEWAYS[0];
 
 export const uploadToPinata = async (file: UploadedFile): Promise<string> => {
     const PINATA_JWT = process.env.PINATA_JWT;
+    console.log('Pinata JWT check:', {
+        exists: !!PINATA_JWT,
+        length: PINATA_JWT ? PINATA_JWT.length : 0,
+        firstChars: PINATA_JWT ? PINATA_JWT.substring(0, 20) + '...' : 'none'
+    });
     if (!PINATA_JWT) {
         throw new Error('Pinata JWT is not configured on the server.');
     }

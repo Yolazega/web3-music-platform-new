@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
 import { Track } from '../types';
 import api from '../services/api';
-import { Card, CardMedia, CardContent, CardActions, Typography, Button, CircularProgress, Link, Box, Alert, Snackbar } from '@mui/material';
+import { Card, CardMedia, CardContent, CardActions, Typography, Button, CircularProgress, Link, Box, Alert, Snackbar, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import { useAccount } from 'wagmi';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 interface TrackCardProps {
     track: Track;
+    onDelete?: (trackId: string) => void;
 }
 
-const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
+const TrackCard: React.FC<TrackCardProps> = ({ track, onDelete }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null);
     const [voteCount, setVoteCount] = useState<number>(track.votes);
     const [imageError, setImageError] = useState(false);
@@ -35,6 +39,34 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const handleDeleteClick = () => {
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        setIsDeleting(true);
+        setFeedback(null);
+        try {
+            await api.delete(`/tracks/${track.id}`);
+            setFeedback({ type: 'success', message: 'Track deleted successfully!' });
+            setDeleteDialogOpen(false);
+            
+            // Call the parent component's onDelete callback if provided
+            if (onDelete) {
+                onDelete(track.id);
+            }
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.error || error.message || 'An unknown error occurred.';
+            setFeedback({ type: 'error', message: `Failed to delete track: ${errorMessage}` });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const handleDeleteCancel = () => {
+        setDeleteDialogOpen(false);
     };
 
     const handleCloseSnackbar = () => {
@@ -76,6 +108,9 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
     const isImageBroken = isPotentiallyBrokenIPFS(track.coverImageUrl || '');
     const isVideoBroken = isPotentiallyBrokenIPFS(track.videoUrl || '') || videoError;
 
+    // Check if current user is the track owner
+    const isOwner = isConnected && address && track.artistWallet.toLowerCase() === address.toLowerCase();
+
     return (
         <>
             <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -94,6 +129,33 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
                         Image Loading Issue
                     </Box>
                 )}
+                
+                {/* Delete button for track owners */}
+                {isOwner && (
+                    <Box sx={{ 
+                        position: 'absolute', 
+                        top: 8, 
+                        left: 8, 
+                        zIndex: 1
+                    }}>
+                        <Button
+                            size="small"
+                            variant="contained"
+                            color="error"
+                            onClick={handleDeleteClick}
+                            disabled={isDeleting}
+                            sx={{
+                                minWidth: 'auto',
+                                padding: '4px 8px',
+                                fontSize: '0.75rem'
+                            }}
+                            startIcon={<DeleteIcon sx={{ fontSize: '16px' }} />}
+                        >
+                            Delete
+                        </Button>
+                    </Box>
+                )}
+                
                 <CardMedia
                     component="img"
                     height="200"
@@ -177,6 +239,39 @@ const TrackCard: React.FC<TrackCardProps> = ({ track }) => {
                     </Box>
                 </CardContent>
             </Card>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog
+                open={deleteDialogOpen}
+                onClose={handleDeleteCancel}
+                aria-labelledby="delete-dialog-title"
+                aria-describedby="delete-dialog-description"
+            >
+                <DialogTitle id="delete-dialog-title">
+                    Delete Track
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText id="delete-dialog-description">
+                        Are you sure you want to delete "{track.title}" by {track.artist}? 
+                        This action cannot be undone and will remove all associated votes and data.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleDeleteCancel} disabled={isDeleting}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        onClick={handleDeleteConfirm} 
+                        color="error" 
+                        variant="contained"
+                        disabled={isDeleting}
+                        startIcon={isDeleting ? <CircularProgress size={16} /> : <DeleteIcon />}
+                    >
+                        {isDeleting ? 'Deleting...' : 'Delete'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             <Snackbar open={!!feedback} autoHideDuration={6000} onClose={handleCloseSnackbar} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
                 <Alert onClose={handleCloseSnackbar} severity={feedback?.type} sx={{ width: '100%' }}>
                     {feedback?.message}

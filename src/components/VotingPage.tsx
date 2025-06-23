@@ -32,6 +32,12 @@ const VotingPage: React.FC = () => {
         fetchPublishedTracks();
     }, []);
 
+    const handleTrackDelete = (deletedTrackId: string) => {
+        setPublishedTracks(prevTracks => 
+            prevTracks.filter(track => track.id !== deletedTrackId)
+        );
+    };
+
     if (loading) {
         return <Container sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Container>;
     }
@@ -53,7 +59,7 @@ const VotingPage: React.FC = () => {
                 <Grid container spacing={4}>
                     {publishedTracks.map((track) => (
                         <Grid item key={track.id} xs={12} sm={6} md={4}>
-                            <TrackCard track={track} />
+                            <TrackCard track={track} onDelete={handleTrackDelete} />
                         </Grid>
                     ))}
                 </Grid>

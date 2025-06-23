@@ -1,48 +1,46 @@
-import { createPublicClient, http, fallback } from 'viem';
-import { defineChain } from 'viem';
+import { createPublicClient, createWalletClient, http, fallback } from 'viem';
+import { polygonAmoy } from 'viem/chains';
 import { AMOY_RPC_URLS, GAS_CONFIG } from './config';
 
-// Define custom Amoy chain with multiple RPC endpoints for reliability
-const polygonAmoy = defineChain({
-  id: 80002,
-  name: 'Polygon Amoy',
-  nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
-  rpcUrls: {
-    default: { 
-      http: AMOY_RPC_URLS
-    },
-  },
-  blockExplorers: {
-    default: { name: 'PolygonScan', url: 'https://amoy.polygonscan.com' },
-  },
-  testnet: true,
+// ENHANCED RPC CONFIGURATION - Optimized to prevent JSON-RPC errors
+// Uses professional RPC providers with enhanced error handling
+const transports = AMOY_RPC_URLS.map((url, index) => 
+    http(url, {
+        timeout: 45000, // Increased timeout for better stability
+        retryCount: 0, // No automatic retries - user handles manually
+        retryDelay: 0,
+        batch: false, // Disable batching to prevent JSON-RPC conflicts
+        fetchOptions: {
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+            },
+        },
+        key: `rpc-${index}`, // Unique key for each transport
+    })
+);
+
+// Enhanced Public client with optimized RPC fallback chain
+export const publicClient = createPublicClient({
+    chain: polygonAmoy,
+    transport: fallback(transports, {
+        rank: false, // Don't rank by speed - use in order
+        retryCount: 0, // No automatic retries at fallback level
+        retryDelay: 0,
+    }),
+    // Additional options to prevent JSON-RPC errors
+    cacheTime: 2000, // 2 second cache
 });
 
-// Enhanced RPC configuration with improved timeout and retry settings
-export const publicClient = createPublicClient({
-  chain: polygonAmoy,
-  transport: fallback(
-    AMOY_RPC_URLS.map(url => http(url, {
-      timeout: 15000, // Increased to 15 seconds per RPC for better stability
-      retryCount: 3,  // Increased retry count per RPC
-      retryDelay: 1500, // Slightly increased delay between retries
-      batch: {
-        wait: 16, // Batch requests every 16ms for better performance
-      },
-    })),
-    { 
-      rank: {
-        interval: 60_000, // Re-rank RPC endpoints every minute
-        sampleCount: 5,   // Use 5 samples for ranking
-        timeout: 500,     // 500ms timeout for ranking requests
-      },
-      retryCount: GAS_CONFIG.STANDARD.MAX_RETRIES, // Use standard config retry count
-      retryDelay: GAS_CONFIG.STANDARD.RETRY_DELAY, // Use standard config retry delay
-    }
-  ),
-  // Enhanced caching for better performance
-  cacheTime: 4_000, // Cache responses for 4 seconds
-});
+// Wallet client factory - creates clients with professional RPC endpoints
+export const createWalletClientWithTransport = (transport: any) => {
+    return createWalletClient({
+        chain: polygonAmoy,
+        transport: fallback(transports, {
+            rank: false, // Use professional RPCs in order
+        }),
+    });
+};
 
 // Helper function to get current gas prices with fallback (uses standard config as default)
 export const getOptimizedGasPrice = async () => {

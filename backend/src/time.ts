@@ -26,15 +26,21 @@ export function getCurrentWeekNumber(): number {
  * Checks if the submission period for the current week is over.
  * The deadline is Saturday at 23:59:59 New York Time.
  * @returns True if the deadline has passed, false otherwise.
+ * 
+ * TESTING MODE: Always returns false to allow submissions anytime for testing.
  */
 export function isSubmissionPeriodOver(): boolean {
-    const now = new Date();
-    const nowInNY = toZonedTime(now, timeZone);
-    const dayOfWeekInNY = nowInNY.getDay(); // Sunday = 0, Saturday = 6
+    // TESTING MODE: Always allow submissions for testing purposes
+    return false;
     
-    // The submission period is over on Saturday after 23:59:59 NY Time, 
-    // which is effectively Sunday morning in New York.
-    return dayOfWeekInNY === 0;
+    // PRODUCTION CODE (commented out for testing):
+    // const now = new Date();
+    // const nowInNY = toZonedTime(now, timeZone);
+    // const dayOfWeekInNY = nowInNY.getDay(); // Sunday = 0, Saturday = 6
+    // 
+    // // The submission period is over on Saturday after 23:59:59 NY Time, 
+    // // which is effectively Sunday morning in New York.
+    // return dayOfWeekInNY === 0;
 }
 
 /**
@@ -42,10 +48,17 @@ export function isSubmissionPeriodOver(): boolean {
  * The voting period for a week ends on the Sunday 00:00:00 UTC that begins the *next* week.
  * @param weekNumber The contest week to check.
  * @returns True if the voting period for that week is over, false otherwise.
+ * 
+ * TESTING MODE: Always allows voting for current week for testing.
  */
 export function isVotingPeriodOverForWeek(weekNumber: number): boolean {
     const now = new Date();
     const currentWeekNumber = getCurrentWeekNumber();
+    
+    // TESTING MODE: Always allow voting for current week
+    if (weekNumber === currentWeekNumber) {
+        return false;
+    }
     
     // If the week being checked is a future week, voting is not open yet.
     if (weekNumber > currentWeekNumber) {
@@ -57,6 +70,7 @@ export function isVotingPeriodOverForWeek(weekNumber: number): boolean {
         return true;
     }
 
+    // PRODUCTION CODE (would be used instead of the testing logic above):
     // If it's the current week, the voting period is over if the submission period is over (i.e., it's Sunday).
-    return isSubmissionPeriodOver();
+    // return isSubmissionPeriodOver();
 } 

@@ -128,7 +128,7 @@ app.use(fileUpload({
     // Security: Prevent file path traversal
     safeFileNames: true,
     preserveExtension: true,
-    debug: true, // Always enable debug for troubleshooting
+    debug: false, // Disable debug to reduce log clutter
 }) as any);
 
 // Request timeout middleware for upload routes
@@ -352,6 +352,16 @@ interface Database {
 }
 
 // --- Database Initialization ---
+// Health check endpoint for Railway
+app.get('/health', (req: Request, res: Response) => {
+    res.status(200).json({ 
+        status: 'healthy', 
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
 const initializeDatabase = async () => {
     try {
         await fs.mkdir(dataDir, { recursive: true, mode: 0o750 });
@@ -376,12 +386,8 @@ app.get('/', (req: Request, res: Response) => {
   });
 });
 
-// Health check endpoint with CORS headers
+// Health check endpoint
 app.get('/health', (req, res) => {
-    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Origin');
-    
     const uptime = process.uptime();
     const memoryUsage = process.memoryUsage();
     
@@ -397,10 +403,6 @@ app.get('/health', (req, res) => {
 
 // Wake-up endpoint to prevent sleeping (Render free tier)
 app.get('/wake', (req, res) => {
-    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Accept, Origin');
-    
     console.log('Backend wake-up call received');
     res.json({ 
         status: 'awake', 
@@ -413,44 +415,22 @@ app.get('/wake', (req, res) => {
 
 // Explicit OPTIONS handler for upload route
 app.options('/upload', (req, res) => {
-    const origin = req.get('Origin');
-    const allowedOrigins = ['http://localhost:3000', 'https://axep-frontend.onrender.com', 'https://www.axepvoting.io'];
-    
-    if (origin && allowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-    } else {
-        res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
-    }
-    
-    res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
-    res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Max-Age', '86400');
     res.sendStatus(200);
 });
 
 // Upload a new track - SIMPLIFIED AND OPTIMIZED
 app.post('/upload', async (req, res) => {
-    // Set CORS headers explicitly for this route
-    const origin = req.get('Origin');
-    const allowedOrigins = ['http://localhost:3000', 'https://axep-frontend.onrender.com', 'https://www.axepvoting.io'];
-    
-    if (origin && allowedOrigins.includes(origin)) {
-        res.header('Access-Control-Allow-Origin', origin);
-    } else {
-        res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
-    }
-    res.header('Access-Control-Allow-Credentials', 'true');
     let tempFiles: string[] = [];
 
     try {
         // Basic request logging
         console.log('Upload request received from:', req.ip);
 
-        // Check submission period in production
-        if (process.env.NODE_ENV === 'production' && isSubmissionPeriodOver()) {
-            return res.status(400).json({ error: 'The submission period for this week is over.' });
-        }
+        // TESTING MODE: Weekly submission check disabled for testing purposes
+        // if (process.env.NODE_ENV === 'production' && isSubmissionPeriodOver()) {
+        //     return res.status(400).json({ error: 'The submission period for this week is over.' });
+        // }
 
         // Validate required fields
         const { artist, title, artistWallet, genre } = req.body;
@@ -682,6 +662,47 @@ app.get('/tracks/:id', async (req, res) => {
     } catch (error) {
         console.error(`Error fetching track ${req.params.id}:`, error);
         res.status(500).json({ error: 'Failed to fetch track.' });
+    }
+});
+
+// Delete a track by ID
+app.delete('/tracks/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const db: Database = JSON.parse(await fs.readFile(dbPath, 'utf-8'));
+        
+        const trackIndex = db.tracks.findIndex((t) => t.id === id);
+        if (trackIndex === -1) {
+            return res.status(404).json({ error: 'Track not found' });
+        }
+        
+        const deletedTrack = db.tracks[trackIndex];
+        
+        // Remove the track from the database
+        db.tracks.splice(trackIndex, 1);
+        
+        // Also remove any votes associated with this track
+        db.votes = db.votes.filter((v) => v.trackId !== id);
+        
+        // Remove any shares associated with this track (if onChainId exists)
+        if (deletedTrack.onChainId) {
+            db.shares = db.shares.filter((s) => s.trackId !== deletedTrack.onChainId);
+        }
+        
+        await fs.writeFile(dbPath, JSON.stringify(db, null, 2));
+        
+        console.log(`Track deleted: ${deletedTrack.title} by ${deletedTrack.artist} (ID: ${id})`);
+        res.json({ 
+            message: 'Track deleted successfully',
+            deletedTrack: {
+                id: deletedTrack.id,
+                title: deletedTrack.title,
+                artist: deletedTrack.artist
+            }
+        });
+    } catch (error) {
+        console.error(`Error deleting track ${req.params.id}:`, error);
+        res.status(500).json({ error: 'Failed to delete track.' });
     }
 });
 
@@ -1199,19 +1220,11 @@ app.post('/debug/pinata-upload', async (req, res) => {
 
 // EXPLICIT OPTIONS HANDLERS FOR ADMIN ROUTES (CORS FIX)
 app.options('/admin/*', (req, res) => {
-    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
-    res.header('Access-Control-Allow-Credentials', 'true');
     res.sendStatus(200);
 });
 
 // Additional explicit CORS headers for admin routes
 app.use('/admin/*', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'https://www.axepvoting.io');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
-    res.header('Access-Control-Allow-Credentials', 'true');
     next();
 });
 

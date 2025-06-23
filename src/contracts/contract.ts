@@ -20,7 +20,6 @@ import {
 import { polygonAmoy } from 'viem/chains';
 import { publicClient } from '../client';
 import { type Track, type Genre } from '../types';
-import { ethers } from "ethers";
 
 export type { Track, Genre };
 
@@ -68,143 +67,8 @@ export const axpTokenAbi: Abi = [
     }
 ] as const;
 
-export const axepVotingAbi: Abi = [
-  {
-    "type": "constructor",
-    "inputs": [
-      { "name": "_tokenAddress", "type": "address", "internalType": "address" }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "registerArtistAndUploadFirstTrack",
-    "inputs": [
-      { "name": "artistName", "type": "string", "internalType": "string" },
-      { "name": "trackTitle", "type": "string", "internalType": "string" },
-      { "name": "genre", "type": "string", "internalType": "string" },
-      { "name": "videoUrl", "type": "string", "internalType": "string" },
-      { "name": "coverImageUrl", "type": "string", "internalType": "string" }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "voteForTrack",
-    "inputs": [
-      { "name": "trackId", "type": "uint256", "internalType": "uint256" }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "getArtist",
-    "inputs": [
-      { "name": "artistId", "type": "uint256", "internalType": "uint256" }
-    ],
-    "outputs": [
-      { 
-        "name": "", 
-        "type": "tuple", 
-        "internalType": "struct AxepVoting.Artist",
-        "components": [
-          { "name": "id", "type": "uint256", "internalType": "uint256" },
-          { "name": "name", "type": "string", "internalType": "string" },
-          { "name": "artistWallet", "type": "address", "internalType": "address payable" },
-          { "name": "isRegistered", "type": "bool", "internalType": "bool" }
-        ]
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getTrack",
-    "inputs": [
-      { "name": "trackId", "type": "uint256", "internalType": "uint256" }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "tuple",
-        "internalType": "struct AxepVoting.Track",
-        "components": [
-          { "name": "id", "type": "uint256", "internalType": "uint256" },
-          { "name": "artistId", "type": "uint256", "internalType": "uint256" },
-          { "name": "title", "type": "string", "internalType": "string" },
-          { "name": "genre", "type": "string", "internalType": "string" },
-          { "name": "videoUrl", "type": "string", "internalType": "string" },
-          { "name": "coverImageUrl", "type": "string", "internalType": "string" },
-          { "name": "uploadTimestamp", "type": "uint256", "internalType": "uint256" },
-          { "name": "votes", "type": "uint256", "internalType": "uint256" }
-        ]
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getAllTrackIds",
-    "inputs": [],
-    "outputs": [
-      { "name": "", "type": "uint256[]", "internalType": "uint256[]" }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getTrackIdsByGenre",
-    "inputs": [
-      { "name": "genre", "type": "string", "internalType": "string" }
-    ],
-    "outputs": [
-      { "name": "", "type": "uint256[]", "internalType": "uint256[]" }
-    ],
-    "stateMutability": "view"
-  },
-    {
-    "type": "function",
-    "name": "getOfficialGenres",
-    "inputs": [],
-    "outputs": [
-      { "name": "", "type": "string[]", "internalType": "string[]" }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "event",
-    "name": "ArtistRegistered",
-    "inputs": [
-      { "name": "artistId", "type": "uint256", "indexed": true },
-      { "name": "name", "type": "string", "indexed": false },
-      { "name": "artistWallet", "type": "address", "indexed": true }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "TrackUploaded",
-    "inputs": [
-      { "name": "trackId", "type": "uint256", "indexed": true },
-      { "name": "artistId", "type": "uint256", "indexed": true },
-      { "name": "title", "type": "string", "indexed": false },
-      { "name": "genre", "type": "string", "indexed": false },
-      { "name": "videoUrl", "type": "string", "indexed": false }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "Voted",
-    "inputs": [
-      { "name": "trackId", "type": "uint256", "indexed": true },
-      { "name": "voter", "type": "address", "indexed": true }
-    ],
-    "anonymous": false
-  }
-];
+// Import the correct ABI from config
+export const axepVotingAbi = AXEP_VOTING_CONTRACT_ABI;
 
 export const getClient = (rpcUrl?: string): PublicClient => {
     if (rpcUrl) {
